@@ -38,6 +38,7 @@ from .services import (
 )
 # Import the new filter
 from services.audio.greeting_interruption_filter import GreetingInterruptionFilter
+from services.audio.marathi_idle_prompt_filter import MarathiIdlePromptFilter
 from services.vllm_qwen import ensure_no_think_suffix
 from .call_recording_utils import submit_call_recording
 
@@ -203,8 +204,19 @@ async def run_bot(
             context_aggregator = llm.create_context_aggregator(context)
         
         greeting_filter = GreetingInterruptionFilter()
-        
-        pipeline = Pipeline([
+        language_normalized = str(language or "").strip().lower()
+        marathi_idle_prompt_enabled = (
+            language_normalized == "marathi"
+            or language_normalized == "mr"
+            or language_normalized.startswith("mr-")
+        )
+        marathi_idle_prompt_filter = (
+            MarathiIdlePromptFilter(timeout_secs=10.0) if marathi_idle_prompt_enabled else None
+        )
+        if marathi_idle_prompt_enabled:
+            logger.info("Marathi idle prompt enabled (10s silence after bot speech)")
+
+        pipeline_processors = [
             transport.input(),
             greeting_filter,
             stt,
@@ -212,11 +224,17 @@ async def run_bot(
             context_aggregator.user(),
             llm,
             tts,
+        ]
+        if marathi_idle_prompt_filter:
+            pipeline_processors.append(marathi_idle_prompt_filter)
+        pipeline_processors.extend([
             transcript.assistant(),
             audiobuffer,
             transport.output(),
             context_aggregator.assistant(),
         ])
+
+        pipeline = Pipeline(pipeline_processors)
         
         task = PipelineTask(
             pipeline,
