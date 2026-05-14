@@ -746,16 +746,21 @@ export default function AssistantsPage() {
       }
 
       // Build TTS model object WITHOUT language, using official provider name
+      const usesArgsVoiceProvider =
+        config.ttsProvider === "cartesia" ||
+        config.ttsProvider === "gcp" ||
+        config.ttsProvider === "elevenlabs"
+
       const ttsModel: Record<string, unknown> = {
         name: getProviderOfficialName(config.ttsProvider),
-        ...((config.ttsProvider === "cartesia" || config.ttsProvider === "gcp") && {
+        ...(usesArgsVoiceProvider && {
           args: {
             ...(config.ttsModel && { model: config.ttsModel }),
             ...(config.ttsVoice && { voice_id: config.ttsVoice }),
           },
         }),
-        ...(config.ttsProvider !== "cartesia" && config.ttsProvider !== "gcp" && config.ttsModel && { model: config.ttsModel }),
-        speaker: (config.ttsProvider === "cartesia" || config.ttsProvider === "gcp") ? "" : (config.ttsVoice || ""),
+        ...(!usesArgsVoiceProvider && config.ttsModel && { model: config.ttsModel }),
+        speaker: usesArgsVoiceProvider ? "" : (config.ttsVoice || ""),
       }
       if ((config.ttsProvider === "ai4bharat" || config.ttsProvider === "bhashini") && config.ttsDescription) {
         ttsModel.description = config.ttsDescription
@@ -1566,7 +1571,7 @@ export default function AssistantsPage() {
                         <div className="space-y-2">
                           <label className="text-sm font-semibold text-slate-700">Voice</label>
                           <div className="flex items-center gap-2">
-                            {(config.ttsProvider === "gcp" || config.ttsProvider === "cartesia") ? (
+                            {(config.ttsProvider === "gcp" || config.ttsProvider === "cartesia" || config.ttsProvider === "elevenlabs") ? (
                               <Input
                                 value={config.ttsVoice}
                                 onChange={(e) => updateConfig("ttsVoice", e.target.value)}

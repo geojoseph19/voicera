@@ -1,14 +1,15 @@
-"""Bhashini Socket.IO STT Service for Pipecat"""
+"""Bhashini HTTP REST STT Service for Pipecat"""
 
 import asyncio
-import os
+import base64
+import io
+import wave
 from typing import AsyncGenerator, Optional
 from loguru import logger
 
 from pipecat.frames.frames import (
     Frame,
     TranscriptionFrame,
-    InterimTranscriptionFrame,
     ErrorFrame,
     StartFrame,
     EndFrame,
@@ -21,244 +22,207 @@ from pipecat.services.stt_service import STTService
 from pipecat.utils.time import time_now_iso8601
 
 try:
-    import socketio
+    import aiohttp
 except ModuleNotFoundError as e:
     logger.error(f"Exception: {e}")
-    logger.error("Install with: pip install python-socketio[asyncio_client] aiohttp")
+    logger.error("Install with: pip install aiohttp")
     raise Exception(f"Missing module: {e}")
 
 
 class BhashiniSTTService(STTService):
-    """Bhashini real-time STT using Socket.IO."""
+    """Bhashini STT using the /services/inference/pipeline REST API."""
 
     def __init__(
         self,
         *,
         api_key: str,
-        socket_url: str = None,
+        base_url: str = "https://dhruva-api.bhashini.gov.in",
         service_id: str = "bhashini/ai4bharat/conformer-multilingual-asr",
         language: str = "hi",
         sample_rate: int = 16000,
-        response_frequency_secs: float = 1.0,
+        audio_channels: int = 1,
+        audio_format: str = "wav",
         **kwargs,
     ):
         super().__init__(sample_rate=sample_rate, **kwargs)
 
         self._api_key = api_key
-        self._socket_url = socket_url or os.getenv("BHASHINI_SOCKET_URL", "wss://dhruva-api.bhashini.gov.in")
+        self._endpoint = f"{base_url.rstrip('/')}/services/inference/pipeline"
         self._service_id = service_id
         self._language = language
-        self._response_frequency_secs = response_frequency_secs
+        self._sample_rate = sample_rate
+        self._audio_channels = audio_channels
+        self._audio_format = audio_format
 
-        self._sio: Optional[socketio.AsyncClient] = None
-        
-        self._is_connected = False
-        self._is_ready = False
+        self._session: Optional[aiohttp.ClientSession] = None
+
+        # Buffer raw PCM chunks while the user is speaking; flush on stop.
+        self._audio_buffer: list[bytes] = []
         self._is_speaking = False
-        self._ready_event: Optional[asyncio.Event] = None
 
-    def _build_task_sequence(self) -> list:
-        return [{
-            "taskType": "asr",
-            "config": {
-                "serviceId": self._service_id,
-                "language": {"sourceLanguage": self._language},
-                "samplingRate": self.sample_rate,
-                "audioFormat": "wav"
-            }
-        }]
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
     async def start(self, frame: StartFrame):
         await super().start(frame)
-        await self._connect()
+        self._session = aiohttp.ClientSession(
+            headers={
+                "Authorization": self._api_key,
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+            }
+        )
+        logger.info("Bhashini STT service started")
 
     async def stop(self, frame: EndFrame):
-        await self._send_end_of_stream()
-        await self._disconnect()
+        await self._close_session()
         await super().stop(frame)
 
     async def cancel(self, frame: CancelFrame):
-        await self._disconnect()
+        self._audio_buffer.clear()
+        await self._close_session()
         await super().cancel(frame)
 
-    async def _connect(self):
-        logger.debug(f"Connecting to Bhashini: {self._socket_url}")
-        
-        self._ready_event = asyncio.Event()
-        self._sio = socketio.AsyncClient(reconnection_attempts=5)
+    async def _close_session(self):
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
+            logger.debug("Bhashini HTTP session closed")
 
-        @self._sio.event
-        async def connect():
-            logger.debug(f"Bhashini socket connected: {self._sio.get_sid()}")
-            self._is_connected = True
-            await self._sio.emit("start", (
-                self._build_task_sequence(),
-                {"responseFrequencyInSecs": self._response_frequency_secs}
-            ))
+    # ------------------------------------------------------------------
+    # Audio handling
+    # ------------------------------------------------------------------
 
-        @self._sio.event
-        async def connect_error(data):
-            logger.error(f"Bhashini connection error: {data}")
-            await self.push_error(ErrorFrame(error=f"Connection error: {data}"))
+    def _pcm_to_wav_b64(self, pcm_chunks: list[bytes]) -> str:
+        """Combine raw PCM chunks into a WAV file and return base64 string."""
+        raw = b"".join(pcm_chunks)
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(self._audio_channels)
+            wf.setsampwidth(2)          # 16-bit PCM
+            wf.setframerate(self._sample_rate)
+            wf.writeframes(raw)
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-        @self._sio.on("ready")
-        async def on_ready():
-            logger.debug("Bhashini server ready")
-            self._is_ready = True
-            self._ready_event.set()
+    def _build_payload(self, audio_b64: str) -> dict:
+        return {
+            "pipelineTasks": [
+                {
+                    "taskType": "asr",
+                    "config": {
+                        "language": {"sourceLanguage": self._language},
+                        "serviceId": self._service_id,
+                    },
+                }
+            ],
+            "inputData": {
+                "audio": [{"audioContent": audio_b64}]
+            },
+        }
 
-        @self._sio.on("response")
-        async def on_response(response, streaming_status):
-            await self._handle_response(response, streaming_status)
+    async def _transcribe(self, audio_b64: str) -> Optional[str]:
+        """POST to Bhashini pipeline and return the transcript string."""
+        if not self._session:
+            logger.error("No active HTTP session")
+            return None
 
-        @self._sio.on("abort")
-        async def on_abort(message):
-            logger.warning(f"Bhashini aborted: {message}")
-            await self.push_error(ErrorFrame(error=f"Aborted: {message}"))
-
-        @self._sio.on("terminate")
-        async def on_terminate():
-            logger.info("Bhashini connection terminated by server")
-            self._is_ready = False
-            self._is_connected = False
-
-        @self._sio.event
-        async def disconnect():
-            logger.debug("Bhashini disconnected")
-            self._is_connected = False
-            self._is_ready = False
-
+        payload = self._build_payload(audio_b64)
         try:
-            await self._sio.connect(
-                url=self._socket_url,
-                transports=["websocket", "polling"],
-                socketio_path="/socket.io",
-                auth={"authorization": self._api_key}
-            )
-            await asyncio.wait_for(self._ready_event.wait(), timeout=10.0)
-            logger.info("Bhashini STT service ready")
-        except asyncio.TimeoutError:
-            logger.error("Bhashini connection timeout")
-            await self.push_error(ErrorFrame(error="Connection timeout"))
-        except Exception as e:
-            logger.error(f"Bhashini connection failed: {e}")
-            await self.push_error(ErrorFrame(error=str(e)))
+            async with self._session.post(self._endpoint, json=payload) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    logger.error(f"Bhashini API error {resp.status}: {text}")
+                    return None
 
-    async def _disconnect(self):
-        if self._sio:
-            logger.debug("Disconnecting from Bhashini")
-            self._is_ready = False
-            self._is_connected = False
-            try:
-                await self._sio.disconnect()
-            except Exception as e:
-                logger.warning(f"Disconnect error: {e}")
-            self._sio = None
+                data = await resp.json()
 
-    async def _send_end_of_stream(self):
-        """Signal end of speech to server - triggers final transcription."""
-        if not self._sio or not self._is_connected:
-            return
-        try:
-            # clear_server_state=True tells server speaking stopped
-            await self._sio.emit("data", (None, None, True, False))
-            await self._sio.emit("data", (None, None, True, True))
-            logger.debug("Sent end of stream signal")
-        except Exception as e:
-            logger.warning(f"End of stream error: {e}")
-
-    async def _handle_response(self, response: dict, streaming_status: dict):
-        """Process transcription response from Bhashini."""
-        try:
-            is_interim = streaming_status.get("isIntermediateResult", True)
-            
-            pipeline_response = response.get("pipelineResponse", [])
+            pipeline_response = data.get("pipelineResponse", [])
             if not pipeline_response:
-                return
-            
+                return None
+
             outputs = pipeline_response[0].get("output", [])
             if not outputs:
-                return
+                return None
 
-            if is_interim:
-                transcript = outputs[0].get("source", "")
-            else:
-                transcript = ". ".join(
-                    chunk.get("source", "")
-                    for chunk in outputs
-                    if chunk.get("source", "").strip()
-                )
+            # Join all output chunks into a single transcript
+            transcript = ". ".join(
+                chunk.get("source", "").strip()
+                for chunk in outputs
+                if chunk.get("source", "").strip()
+            )
+            return transcript or None
 
-            if not transcript.strip():
-                return
-
-            if is_interim:
-                logger.debug(f"Bhashini interim: {transcript}")
-                await self.push_frame(InterimTranscriptionFrame(
-                    text=transcript,
-                    user_id=self._user_id,
-                    timestamp=time_now_iso8601(),
-                ))
-            else:
-                logger.info(f"Bhashini final: {transcript}")
-                await self.push_frame(TranscriptionFrame(
-                    text=transcript,
-                    user_id=self._user_id,
-                    timestamp=time_now_iso8601(),
-                ))
-
+        except aiohttp.ClientError as e:
+            logger.error(f"Bhashini HTTP request failed: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Response handling error: {e}")
+            logger.error(f"Bhashini transcription error: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # STTService interface
+    # ------------------------------------------------------------------
 
     async def run_stt(self, audio: bytes) -> AsyncGenerator[Frame, None]:
-        """Send audio to Bhashini for transcription."""
-        if not self._is_ready or not audio:
-            yield None
-            return
-
-        try:
-            await self._sio.emit("data", (
-                {"audio": [{"audioContent": audio}]},
-                {},
-                False,  # clear_server_state
-                False   # is_stream_inactive
-            ))
-        except Exception as e:
-            logger.error(f"Audio send error: {e}")
-            yield ErrorFrame(error=str(e))
-            return
-        
+        """
+        Called by the base class for every incoming audio chunk.
+        We buffer chunks while the user is speaking and flush on
+        UserStoppedSpeakingFrame (see process_frame below).
+        """
+        if audio:
+            self._audio_buffer.append(audio)
         yield None
 
+    async def _flush_buffer(self):
+        """Encode buffered audio, call Bhashini, push a TranscriptionFrame."""
+        if not self._audio_buffer:
+            return
+
+        chunks = self._audio_buffer.copy()
+        self._audio_buffer.clear()
+
+        audio_b64 = self._pcm_to_wav_b64(chunks)
+        transcript = await self._transcribe(audio_b64)
+
+        if transcript:
+            logger.info(f"Bhashini transcript: {transcript}")
+            await self.push_frame(TranscriptionFrame(
+                text=transcript,
+                user_id=getattr(self, "_user_id", ""),
+                timestamp=time_now_iso8601(),
+            ))
+        else:
+            logger.debug("Bhashini returned empty transcript")
+
+    # ------------------------------------------------------------------
+    # Speaking detection
+    # ------------------------------------------------------------------
+
     async def process_frame(self, frame: Frame, direction: FrameDirection):
-        """Handle speaking frames like Deepgram does."""
         await super().process_frame(frame, direction)
 
         if isinstance(frame, UserStartedSpeakingFrame):
-            logger.debug("User started speaking")
+            logger.debug("User started speaking — buffering audio")
             self._is_speaking = True
-            
+            self._audio_buffer.clear()   # discard any stale chunks
+
         elif isinstance(frame, UserStoppedSpeakingFrame):
-            logger.debug("User stopped speaking - sending finalize signal")
+            logger.debug("User stopped speaking — flushing buffer to Bhashini")
             self._is_speaking = False
-            # Like Deepgram's finalize() - tell server to flush and send final result
-            if self._sio and self._is_ready:
-                try:
-                    await self._sio.emit("data", (None, None, True, False))
-                except Exception as e:
-                    logger.error(f"Finalize signal error: {e}")
+            await self._flush_buffer()
+
+    # ------------------------------------------------------------------
+    # Runtime config changes
+    # ------------------------------------------------------------------
 
     async def set_language(self, language: str):
         logger.info(f"Switching language to: {language}")
         self._language = language
-        await self._disconnect()
-        await self._connect()
 
     async def set_model(self, service_id: str):
         logger.info(f"Switching service to: {service_id}")
         self._service_id = service_id
-        await self._disconnect()
-        await self._connect()
 
     def can_generate_metrics(self) -> bool:
         return True

@@ -167,7 +167,7 @@ async def run_bot(
             llm_config["knowledge_document_ids"] = list(
                 agent_config.get("knowledge_document_ids") or []
             )
-            llm_config["knowledge_top_k"] = int(agent_config.get("knowledge_top_k", 3) or 3)
+            llm_config["knowledge_top_k"] = 10
         
         language = agent_config.get("language")
         if language:
@@ -341,8 +341,8 @@ async def bot(
     vad_analyzer = SileroVADAnalyzer(
         sample_rate=sample_rate,
         params=VADParams(
-            stop_secs=0.35,
-            min_volume=0.3,
+            stop_secs=0.4,
+            min_volume=0.5,
             confidence=0.4,
             start_secs=0.1,
         )
