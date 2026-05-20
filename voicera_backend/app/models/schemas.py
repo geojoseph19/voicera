@@ -132,6 +132,19 @@ class MeetingUpdate(BaseModel):
     """Schema for updating a meeting (e.g., when call ends)."""
     end_time_utc: str
 
+class PaginatedMeetingsResponse(BaseModel):
+    """Paginated meetings list for History tab."""
+    items: List[MeetingResponse]
+    total: int
+    page: int
+    limit: int
+
+class MeetingFilterOptionsResponse(BaseModel):
+    """Distinct filter values for History tab dropdowns."""
+    agent_types: List[str] = []
+    from_numbers: List[str] = []
+    to_numbers: List[str] = []
+
 # Campaign Models
 class CampaignCreate(BaseModel):
     """Schema for creating a campaign."""

@@ -438,21 +438,92 @@ export interface CreateAudienceRequest {
   parameters?: Record<string, any>
 }
 
+export interface MeetingsPageParams {
+  page?: number
+  limit?: number
+  forExport?: boolean
+  agent_type?: string
+  from_number?: string
+  to_number?: string
+  inbound?: boolean
+  call_status?: string
+  date_from?: string
+  date_to?: string
+  date_sort_order?: "latest" | "oldest"
+  duration_sort_order?: "longest" | "shortest" | null
+}
+
+export interface PaginatedMeetings {
+  items: Meeting[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface MeetingFilterOptions {
+  agent_types: string[]
+  from_numbers: string[]
+  to_numbers: string[]
+}
+
+function buildMeetingsQueryString(params: MeetingsPageParams): string {
+  const q = new URLSearchParams()
+  q.set("page", String(params.page ?? 1))
+  q.set("limit", String(params.limit ?? 50))
+  if (params.forExport) q.set("for_export", "true")
+  if (params.agent_type) q.set("agent_type", params.agent_type)
+  if (params.from_number) q.set("from_number", params.from_number)
+  if (params.to_number) q.set("to_number", params.to_number)
+  if (params.inbound !== undefined) q.set("inbound", String(params.inbound))
+  if (params.call_status) q.set("call_status", params.call_status)
+  if (params.date_from) q.set("date_from", params.date_from)
+  if (params.date_to) q.set("date_to", params.date_to)
+  if (params.date_sort_order) q.set("date_sort_order", params.date_sort_order)
+  if (params.duration_sort_order) {
+    q.set("duration_sort_order", params.duration_sort_order)
+  }
+  return q.toString()
+}
+
 /**
- * Get all meetings for an organization
+ * Fetch a paginated page of meetings (History tab).
  */
-export async function getMeetings(agentType?: string): Promise<Meeting[]> {
-  const url = agentType 
-    ? `/api/meetings?agent_type=${encodeURIComponent(agentType)}`
-    : `/api/meetings`
-  const response = await fetchApiRoute(url)
-  
+export async function getMeetingsPage(
+  params: MeetingsPageParams = {}
+): Promise<PaginatedMeetings> {
+  const response = await fetchApiRoute(`/api/meetings?${buildMeetingsQueryString(params)}`)
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.detail || error.error || "Failed to fetch meetings")
   }
-  
+
   return response.json()
+}
+
+export async function getMeetingFilterOptions(): Promise<MeetingFilterOptions> {
+  const response = await fetchApiRoute("/api/meetings/filter-options")
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(
+      error.detail || error.error || "Failed to fetch meeting filter options"
+    )
+  }
+
+  return response.json()
+}
+
+/**
+ * Get all meetings for an organization (first page only; prefer getMeetingsPage).
+ */
+export async function getMeetings(agentType?: string): Promise<Meeting[]> {
+  const result = await getMeetingsPage({
+    page: 1,
+    limit: 50,
+    agent_type: agentType,
+  })
+  return result.items
 }
 
 /**

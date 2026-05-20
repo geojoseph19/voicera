@@ -3,7 +3,13 @@ Meeting API routes.
 """
 from fastapi import APIRouter, HTTPException, status, Depends, Query, Response
 from fastapi.responses import StreamingResponse
-from app.models.schemas import MeetingCreate, MeetingResponse, MeetingUpdate
+from app.models.schemas import (
+    MeetingCreate,
+    MeetingResponse,
+    MeetingUpdate,
+    PaginatedMeetingsResponse,
+    MeetingFilterOptionsResponse,
+)
 from app.services import meeting_service
 from app.auth import get_current_user, verify_api_key
 from app.storage.minio_client import MinIOStorage
@@ -67,29 +73,55 @@ async def update_meeting(
 # Frontend Endpoints (User JWT Authentication)
 # ============================================================================
 
-@router.get("", response_model=List[MeetingResponse])
+@router.get("/filter-options", response_model=MeetingFilterOptionsResponse)
+async def get_meeting_filter_options(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Distinct agent types and phone numbers for History filter dropdowns."""
+    org_id = current_user["org_id"]
+    options = meeting_service.fetch_meeting_filter_options(org_id)
+    return options
+
+
+@router.get("", response_model=PaginatedMeetingsResponse)
 async def get_meetings(
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(50, ge=1, le=10000, description="Page size (max 50; higher when for_export)"),
+    for_export: bool = Query(False, description="Allow large limit for export"),
     agent_type: Optional[str] = Query(None, description="Filter by agent type"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    from_number: Optional[str] = Query(None),
+    to_number: Optional[str] = Query(None),
+    inbound: Optional[bool] = Query(None, description="True=inbound, False=outbound"),
+    call_status: Optional[str] = Query(None, description="Busy, Completed, or In Progress"),
+    date_from: Optional[str] = Query(None, description="ISO date start (inclusive)"),
+    date_to: Optional[str] = Query(None, description="ISO date end (inclusive)"),
+    date_sort_order: Optional[str] = Query("latest", description="latest or oldest"),
+    duration_sort_order: Optional[str] = Query(
+        None, description="longest or shortest; overrides date sort when set"
+    ),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Get all meetings for the current user's organization.
-    
-    The org_id is automatically extracted from the JWT token.
-    Optionally filter by agent_type using query parameter.
-    
-    Examples:
-        - GET /meetings - Get all meetings for your org
-        - GET /meetings?agent_type=sales - Get only sales meetings
+    Get paginated meetings for the current user's organization.
     """
     org_id = current_user["org_id"]
-    
-    if agent_type:
-        meetings = meeting_service.fetch_meetings_by_org_and_agent(org_id, agent_type)
-    else:
-        meetings = meeting_service.fetch_meetings_of_org(org_id)
-    
-    return meetings
+    effective_limit = limit if for_export else min(limit, 50)
+
+    result = meeting_service.fetch_meetings_paginated(
+        org_id=org_id,
+        page=page,
+        limit=effective_limit,
+        agent_type=agent_type,
+        from_number=from_number,
+        to_number=to_number,
+        inbound=inbound,
+        call_status=call_status,
+        date_from=date_from,
+        date_to=date_to,
+        date_sort_order=date_sort_order or "latest",
+        duration_sort_order=duration_sort_order,
+    )
+    return result
 
 
 @router.get("/{meeting_id}", response_model=MeetingResponse)
