@@ -94,7 +94,8 @@ async def attach_phone_number_to_agent(
         request.phone_number,
         request.provider,
         request.agent_type,
-        current_user["org_id"]
+        current_user["org_id"],
+        current_user.get("email"),
     )
     
     if result["status"] == "fail":
@@ -121,7 +122,8 @@ async def detach_phone_number(
     """
     result = phone_number.detach_phone_number(
         request.phone_number,
-        current_user["org_id"]
+        current_user["org_id"],
+        current_user.get("email"),
     )
     
     if result["status"] == "fail":

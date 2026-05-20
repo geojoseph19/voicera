@@ -228,6 +228,10 @@ class PhoneNumberResponse(BaseModel):
     org_id: str
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    last_link_action: Optional[str] = None  # "attached" | "detached"
+    last_link_agent_type: Optional[str] = None
+    last_link_by_email: Optional[str] = None
+    last_link_at: Optional[str] = None
 
 # Vobiz Models
 class VobizApplicationCreate(BaseModel):

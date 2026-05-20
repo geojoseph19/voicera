@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Fragment } from "react"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +55,7 @@ import {
   XCircle,
   CheckCircle2,
   AlertTriangleIcon,
+  Link2,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -78,6 +79,10 @@ interface PhoneNumber {
   org_id: string
   created_at?: string
   updated_at?: string
+  last_link_action?: string | null
+  last_link_agent_type?: string | null
+  last_link_by_email?: string | null
+  last_link_at?: string | null
 }
 
 interface PhoneNumberDisplay extends PhoneNumber {
@@ -138,6 +143,18 @@ export default function NumbersPage() {
     if (!agent) return agentType
     const telephonyAgent = agent as AgentWithTelephony
     return telephonyAgent.agent_category || agent.agent_type || agentType
+  }
+
+  const formatLastLinkLine = (phone: PhoneNumber): string | null => {
+    if (!phone.last_link_at) return null
+    const who = phone.last_link_by_email || "Unknown"
+    const when = formatDate(phone.last_link_at)
+    if (phone.last_link_action === "detached") {
+      const agentId = phone.last_link_agent_type?.trim()
+      const agentLabel = agentId || "—"
+      return `Detached from ${agentLabel} by ${who} · ${when}`
+    }
+    return `Attached by ${who} · ${when}`
   }
 
   // Fetch phone numbers and agents
@@ -586,28 +603,33 @@ export default function NumbersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPhoneNumbers.map((phone) => (
+                  {filteredPhoneNumbers.map((phone) => {
+                    const lastLinkLine = formatLastLinkLine(phone)
+                    return (
+                    <Fragment key={phone.id}>
                     <TableRow 
-                      key={phone.id} 
-                      className="hover:bg-neutral-50/50 border-b border-neutral-100 last:border-0"
+                      className={cn(
+                        "hover:bg-neutral-50/50",
+                        lastLinkLine ? "border-b-0" : "border-b border-neutral-100 last:border-b-0"
+                      )}
                     >
                       {/* Number Cell */}
                       <TableCell className="pl-6 py-5">
                         <div className="flex items-center gap-3">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => copyToClipboard(phone.number, phone.id)}
-                                className="h-8 w-8 rounded-lg border border-neutral-200 flex items-center justify-center hover:bg-neutral-100 transition-colors"
-                              >
-                                <Copy className="h-4 w-4 text-neutral-500" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{copiedId === phone.id ? "Copied!" : "Copy number"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                          <span className="font-medium text-neutral-900">{phone.number}</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => copyToClipboard(phone.number, phone.id)}
+                                  className="h-8 w-8 rounded-lg border border-neutral-200 flex items-center justify-center hover:bg-neutral-100 transition-colors"
+                                >
+                                  <Copy className="h-4 w-4 text-neutral-500" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{copiedId === phone.id ? "Copied!" : "Copy number"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <span className="font-medium text-neutral-900">{phone.number}</span>
                         </div>
                       </TableCell>
 
@@ -645,8 +667,8 @@ export default function NumbersPage() {
                       </TableCell>
 
                       {/* Actions Cell */}
-                      <TableCell className="py-5">
-                        <div className="flex items-center gap-2">
+                      <TableCell className="py-5 text-right">
+                        <div className="flex items-center justify-end gap-2">
                           {phone.usedBy ? (
                             <Button 
                               variant="outline" 
@@ -672,7 +694,22 @@ export default function NumbersPage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    {lastLinkLine ? (
+                      <TableRow className="hover:bg-neutral-50/40 border-b border-neutral-100 last:border-b-0">
+                        <TableCell colSpan={5} className="p-0 border-0">
+                          <div
+                            className="flex justify-end items-center gap-1.5 px-6 py-2 text-[11px] leading-tight text-[var(--color-text-tertiary)] bg-neutral-50/90 border-t border-neutral-100/90"
+                            role="note"
+                          >
+                            <Link2 className="size-3 shrink-0 opacity-90" aria-hidden />
+                            <span>{lastLinkLine}</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                    </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             )}
