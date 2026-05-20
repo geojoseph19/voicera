@@ -3,6 +3,9 @@
 import asyncio
 import base64
 import io
+import os
+from dotenv import load_dotenv
+load_dotenv()
 import wave
 from typing import AsyncGenerator, Optional
 from loguru import logger
@@ -30,13 +33,13 @@ except ModuleNotFoundError as e:
 
 
 class BhashiniSTTService(STTService):
-    """Bhashini STT using the /services/inference/pipeline REST API."""
+    """NVCF-hosted AI4Bharat STT, drop-in replacement for Bhashini STT."""
 
     def __init__(
         self,
         *,
-        api_key: str,
-        base_url: str = "https://dhruva-api.bhashini.gov.in",
+        api_key: str = "",
+        base_url: str = "https://c1bba2d4-7cdc-439c-8e6b-77bb87a191fa.invocation.api.nvcf.nvidia.com",
         service_id: str = "bhashini/ai4bharat/conformer-multilingual-asr",
         language: str = "hi",
         sample_rate: int = 16000,
@@ -46,8 +49,8 @@ class BhashiniSTTService(STTService):
     ):
         super().__init__(sample_rate=sample_rate, **kwargs)
 
-        self._api_key = api_key
-        self._endpoint = f"{base_url.rstrip('/')}/services/inference/pipeline"
+        self._api_key = os.getenv("NVCF_API_KEY", "")
+        self._endpoint = f"{base_url.rstrip('/')}/transcribe"
         self._service_id = service_id
         self._language = language
         self._sample_rate = sample_rate
@@ -56,7 +59,6 @@ class BhashiniSTTService(STTService):
 
         self._session: Optional[aiohttp.ClientSession] = None
 
-        # Buffer raw PCM chunks while the user is speaking; flush on stop.
         self._audio_buffer: list[bytes] = []
         self._is_speaking = False
 
@@ -68,7 +70,7 @@ class BhashiniSTTService(STTService):
         await super().start(frame)
         self._session = aiohttp.ClientSession(
             headers={
-                "Authorization": self._api_key,
+                "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json",
                 "Accept": "*/*",
             }
@@ -100,29 +102,19 @@ class BhashiniSTTService(STTService):
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wf:
             wf.setnchannels(self._audio_channels)
-            wf.setsampwidth(2)          # 16-bit PCM
+            wf.setsampwidth(2)
             wf.setframerate(self._sample_rate)
             wf.writeframes(raw)
         return base64.b64encode(buf.getvalue()).decode("utf-8")
 
     def _build_payload(self, audio_b64: str) -> dict:
         return {
-            "pipelineTasks": [
-                {
-                    "taskType": "asr",
-                    "config": {
-                        "language": {"sourceLanguage": self._language},
-                        "serviceId": self._service_id,
-                    },
-                }
-            ],
-            "inputData": {
-                "audio": [{"audioContent": audio_b64}]
-            },
+            "audio_b64": audio_b64,
+            "language_id": self._language,
         }
 
     async def _transcribe(self, audio_b64: str) -> Optional[str]:
-        """POST to Bhashini pipeline and return the transcript string."""
+        """POST to NVCF endpoint and return the transcript string."""
         if not self._session:
             logger.error("No active HTTP session")
             return None
@@ -137,20 +129,7 @@ class BhashiniSTTService(STTService):
 
                 data = await resp.json()
 
-            pipeline_response = data.get("pipelineResponse", [])
-            if not pipeline_response:
-                return None
-
-            outputs = pipeline_response[0].get("output", [])
-            if not outputs:
-                return None
-
-            # Join all output chunks into a single transcript
-            transcript = ". ".join(
-                chunk.get("source", "").strip()
-                for chunk in outputs
-                if chunk.get("source", "").strip()
-            )
+            transcript = data.get("text", "").strip()
             return transcript or None
 
         except aiohttp.ClientError as e:
@@ -165,17 +144,11 @@ class BhashiniSTTService(STTService):
     # ------------------------------------------------------------------
 
     async def run_stt(self, audio: bytes) -> AsyncGenerator[Frame, None]:
-        """
-        Called by the base class for every incoming audio chunk.
-        We buffer chunks while the user is speaking and flush on
-        UserStoppedSpeakingFrame (see process_frame below).
-        """
         if audio:
             self._audio_buffer.append(audio)
         yield None
 
     async def _flush_buffer(self):
-        """Encode buffered audio, call Bhashini, push a TranscriptionFrame."""
         if not self._audio_buffer:
             return
 
@@ -205,7 +178,7 @@ class BhashiniSTTService(STTService):
         if isinstance(frame, UserStartedSpeakingFrame):
             logger.debug("User started speaking — buffering audio")
             self._is_speaking = True
-            self._audio_buffer.clear()   # discard any stale chunks
+            self._audio_buffer.clear()
 
         elif isinstance(frame, UserStoppedSpeakingFrame):
             logger.debug("User stopped speaking — flushing buffer to Bhashini")

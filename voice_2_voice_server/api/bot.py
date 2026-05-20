@@ -342,7 +342,7 @@ async def bot(
         sample_rate=sample_rate,
         params=VADParams(
             stop_secs=0.4,
-            min_volume=0.6,
+            min_volume=0.5,
             confidence=0.4,
             start_secs=0.2,
         )

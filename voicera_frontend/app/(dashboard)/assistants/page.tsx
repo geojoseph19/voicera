@@ -2,7 +2,10 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { getCurrentUser, getAgents, createAgent, createVobizApplication, createPlivoApplication, deleteVobizApplication, deletePlivoApplication, deleteAgent, unlinkVobizNumber, unlinkPlivoNumber, fetchApiRoute, getIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type KnowledgeDocument } from "@/lib/api"
+import { useQueryClient } from "@tanstack/react-query"
+import { formatDistanceToNow } from "date-fns"
+import { getCurrentUser, createAgent, createVobizApplication, createPlivoApplication, deleteVobizApplication, deletePlivoApplication, deleteAgent, unlinkVobizNumber, unlinkPlivoNumber, fetchApiRoute, getIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type KnowledgeDocument } from "@/lib/api"
+import { agentsQueryKey, useAgentsQuery } from "@/lib/queries/agents"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +40,7 @@ import {
   ChevronLeft,
   Plus,
   Search,
+  RefreshCw,
   Phone,
   BarChart3,
   FileText,
@@ -245,14 +249,13 @@ const wizardSteps = [
 
 export default function AssistantsPage() {
   const router = useRouter()
-  const [agents, setAgents] = useState<Agent[]>([])
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
   const [agentSortOrder, setAgentSortOrder] = useState<"newest" | "oldest">("newest")
   const [config, setConfig] = useState<AgentConfig>(defaultConfig)
   const [view, setView] = useState<"list" | "create">("list")
   const [createStep, setCreateStep] = useState(1)
   const [user, setUser] = useState<User | null>(null)
-  const [isLoadingAgents, setIsLoadingAgents] = useState(true)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
   const [isTestCallSheetOpen, setIsTestCallSheetOpen] = useState(false)
   const [isTestBrowserDialogOpen, setIsTestBrowserDialogOpen] = useState(false)
@@ -262,19 +265,23 @@ export default function AssistantsPage() {
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocument[]>([])
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false)
 
-  // Fetch user data, agents, and integrations on mount
+  const {
+    data: agents = [],
+    isPending: isLoadingAgents,
+    isError: isAgentsError,
+    error: agentsError,
+    refetch: refetchAgents,
+    isFetching: isFetchingAgents,
+    dataUpdatedAt,
+  } = useAgentsQuery(user?.org_id)
+
+  // Fetch user, integrations, and knowledge docs on mount
   useEffect(() => {
     async function fetchData() {
       try {
         const userData = await getCurrentUser()
         setUser(userData)
-        
-        // Fetch agents for this org
-        if (userData.org_id) {
-          const agentsData = await getAgents(userData.org_id)
-          setAgents(agentsData)
-        }
-        
+
         // Fetch integrations to know which providers have API keys
         try {
           const integrations = await getIntegrations()
@@ -300,34 +307,16 @@ export default function AssistantsPage() {
       } catch (error) {
         console.error("Failed to fetch data:", error)
         router.push("/")
-      } finally {
-        setIsLoadingAgents(false)
       }
     }
     fetchData()
   }, [router])
 
-  // Refresh agents when window regains focus (user navigates back from detail page)
   useEffect(() => {
-    const handleFocus = async () => {
-      if (view === "list") {
-        try {
-          // Re-fetch current user to ensure we have the correct org_id matching the token
-          const currentUser = await getCurrentUser()
-          if (currentUser?.org_id) {
-            setUser(currentUser)
-            const agentsData = await getAgents(currentUser.org_id)
-            setAgents(agentsData)
-          }
-        } catch (error) {
-          console.error("Failed to refresh agents:", error)
-        }
-      }
+    if (isAgentsError) {
+      console.error("Failed to fetch agents:", agentsError)
     }
-
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [view])
+  }, [isAgentsError, agentsError])
 
   // Filter agents based on search
   const filteredAgents = agents.filter(
@@ -640,9 +629,9 @@ export default function AssistantsPage() {
       }
       await deleteAgent(agentId, { agentType: agent.agent_type })
 
-      // Refresh the agents list after deletion
-      const agentsData = await getAgents(user.org_id)
-      setAgents(agentsData)
+      await queryClient.invalidateQueries({
+        queryKey: agentsQueryKey(user.org_id),
+      })
       
       // Show success toast
       setShowDeleteSuccessToast(true)
@@ -855,17 +844,12 @@ export default function AssistantsPage() {
         }),
       }
 
-      // Create agent via API
-      const newAgent = await createAgent(agentData)
+      await createAgent(agentData)
 
-      
-      // Refresh agents list to get all agents with proper data
       if (user.org_id) {
-        const agentsData = await getAgents(user.org_id)
-        setAgents(agentsData)
-      } else {
-        // Fallback: add new agent to the list
-        setAgents([...agents, newAgent])
+        await queryClient.invalidateQueries({
+          queryKey: agentsQueryKey(user.org_id),
+        })
       }
       
       // Reset and go back to list
@@ -955,7 +939,26 @@ export default function AssistantsPage() {
               <h1 className="text-3xl font-semibold text-slate-900 mb-1">Hi {user?.name}</h1>
               <p className="text-slate-500">Let&apos;s get your agents inline.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {dataUpdatedAt > 0 && (
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  Last updated{" "}
+                  {formatDistanceToNow(dataUpdatedAt, { addSuffix: true })}
+                </span>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0 rounded-lg border-slate-200"
+                aria-label="Refresh agents"
+                disabled={isFetchingAgents || !user?.org_id}
+                onClick={() => refetchAgents()}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isFetchingAgents ? "animate-spin" : ""}`}
+                />
+              </Button>
               <Select
                 value={agentSortOrder}
                 onValueChange={(v) => setAgentSortOrder(v as "newest" | "oldest")}
@@ -983,6 +986,19 @@ export default function AssistantsPage() {
               </div>
             </div>
           </div>
+
+          {isAgentsError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Failed to load agents.{" "}
+              <button
+                type="button"
+                className="font-medium underline"
+                onClick={() => refetchAgents()}
+              >
+                Try again
+              </button>
+            </div>
+          )}
 
           {/* Assistant Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
