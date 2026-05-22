@@ -188,6 +188,7 @@ interface AgentConfig {
   systemPrompt: string
   llmProvider: string
   llmModel: string
+  kenpathEnvironment: "prod" | "dev"
   knowledgeEnabled: boolean
   knowledgeDocumentIds: string[]
   knowledgeTopK: number
@@ -218,6 +219,7 @@ const defaultConfig: AgentConfig = {
   systemPrompt: "You are a helpful agent. You will help the customer with their queries and doubts. You will never speak more than 2 sentences. Keep your responses concise",
   llmProvider: "openai",
   llmModel: "gpt-4o",
+  kenpathEnvironment: "prod",
   knowledgeEnabled: false,
   knowledgeDocumentIds: [],
   knowledgeTopK: 3,
@@ -345,16 +347,14 @@ export default function AssistantsPage() {
   }, [filteredAgents, agentSortOrder])
 
   const viewConfig = (agent: Agent) => {
-    // Use agent.id or agent._id (MongoDB) if available, otherwise construct a unique identifier
-    let agentId = agent.id || agent._id
-    if (!agentId) {
-      // Construct ID only if we have the necessary fields
-      if (agent.org_id && agent.agent_type) {
-        const timestamp = agent.created_at || Date.now().toString()
-        agentId = `${agent.org_id}-${agent.agent_type}-${timestamp}`
-      }
-    }
-    if (!agentId || agentId === 'undefined' || agentId.includes('undefined')) {
+    // agent_type is the stable backend lookup key (unique per org). Composite IDs built from
+    // created_at ISO strings break hyphen-based parsing in the detail API route.
+    const agentId =
+      agent.agent_type ||
+      agent.agent_id ||
+      agent.id ||
+      agent._id
+    if (!agentId || agentId === "undefined" || agentId.includes("undefined")) {
       console.error("Agent ID is missing or invalid:", agent)
       return
     }
@@ -691,6 +691,9 @@ export default function AssistantsPage() {
       }
       if (key === "llmProvider") {
         updated.llmModel = ""
+        if ((value as string) === "kenpath") {
+          updated.kenpathEnvironment = "prod"
+        }
         if ((value as string) !== "openai") {
           updated.knowledgeEnabled = false
           updated.knowledgeDocumentIds = []
@@ -735,11 +738,13 @@ export default function AssistantsPage() {
       const languageName = config.language // Already the name, no lookup needed
 
       // Build LLM model object with official provider name
-      const llmModel: { name: string; model?: string } = {
+      const llmModel: { name: string; model?: string; vistaar_environment?: "prod" | "dev" } = {
         name: getProviderOfficialName(config.llmProvider),
       }
       if (config.llmProvider !== "kenpath") {
         llmModel.model = config.llmModel
+      } else {
+        llmModel.vistaar_environment = config.kenpathEnvironment
       }
 
       // Build STT model object WITHOUT language inside, using official provider name
@@ -1245,20 +1250,45 @@ export default function AssistantsPage() {
                         </SelectContent>
                       </Select>
 
-                      <Select value={config.llmModel} onValueChange={(v) => updateConfig("llmModel", v)} disabled={!config.llmProvider || availableLLMModels.length === 0}>
-                        <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
-                          <SelectValue placeholder="Select model" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-lg max-h-[280px]">
-                          {availableLLMModels.map((model) => (
-                            <SelectItem key={model} value={model} className="py-2.5 font-mono text-sm">
-                              {model}
+                      {config.llmProvider === "kenpath" ? (
+                        <Select
+                          value={config.kenpathEnvironment}
+                          onValueChange={(v) => updateConfig("kenpathEnvironment", v as "prod" | "dev")}
+                        >
+                          <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
+                            <SelectValue placeholder="Select API environment" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg">
+                            <SelectItem value="prod" className="py-2.5">
+                              Production
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            <SelectItem value="dev" className="py-2.5">
+                              Development
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Select value={config.llmModel} onValueChange={(v) => updateConfig("llmModel", v)} disabled={!config.llmProvider || availableLLMModels.length === 0}>
+                          <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg max-h-[280px]">
+                            {availableLLMModels.map((model) => (
+                              <SelectItem key={model} value={model} className="py-2.5 font-mono text-sm">
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </div>
+
+                  {config.llmProvider === "kenpath" && (
+                    <p className="text-sm text-blue-600">
+                      Vistaar API environment for Hindi/Marathi streaming. Voice Bhili uses a separate endpoint.
+                    </p>
+                  )}
 
                   {config.llmProvider !== "kenpath" && (
                     <div className="grid grid-cols-2 gap-6 pt-4">
@@ -1864,7 +1894,10 @@ export default function AssistantsPage() {
                     <div>
                       <p className="text-sm font-bold text-slate-900 mb-2">LLM Model</p>
                       <p className="text-sm font-medium text-slate-700">
-                        {getProviderOfficialName(config.llmProvider) || "—"} / {config.llmModel || "—"}
+                        {getProviderOfficialName(config.llmProvider) || "—"}
+                        {config.llmProvider === "kenpath"
+                          ? ` / ${config.kenpathEnvironment === "dev" ? "Development" : "Production"}`
+                          : ` / ${config.llmModel || "—"}`}
                       </p>
                       {config.llmProvider !== "kenpath" && (
                         <p className="text-sm text-slate-500 mt-1">

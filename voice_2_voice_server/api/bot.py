@@ -342,9 +342,9 @@ async def bot(
         sample_rate=sample_rate,
         params=VADParams(
             stop_secs=0.4,
-            min_volume=0.5,
-            confidence=0.4,
-            start_secs=0.2,
+            min_volume=0.4,
+            confidence=0.3,
+            start_secs=0.1,
         )
     )
     vad_analyzer._smoothing_factor = 0.1  # Faster volume change response

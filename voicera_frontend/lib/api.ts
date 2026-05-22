@@ -373,6 +373,7 @@ export interface AgentConfig {
   llm_model: {
     name: string
     model?: string
+    vistaar_environment?: "prod" | "dev"
   }
   stt_model: {
     name: string
@@ -403,6 +404,8 @@ export interface CreateAgentRequest {
   agent_id: string
   agent_category: string
   agent_config: AgentConfig
+  /** BFF-only: original agent_type for PUT lookup when renaming */
+  original_agent_type?: string
   telephony_provider?: string
   vobiz_app_id?: string
   vobiz_answer_url?: string

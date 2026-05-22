@@ -163,9 +163,15 @@ def create_llm_service(
 
         return service
     elif provider_normalized == "Kenpath":
+        vistaar_env = (
+            args.get("vistaar_environment")
+            or llm_config.get("vistaar_environment")
+            or "prod"
+        )
         return KenpathLLM(
             vistaar_session_id=vistaar_session_id,
             language=language,
+            vistaar_environment=vistaar_env,
         )
     elif provider_normalized in ("Anthropic", "anthropic"):
         if not org_id:

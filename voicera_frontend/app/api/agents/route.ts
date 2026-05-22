@@ -49,9 +49,9 @@ export async function GET(request: NextRequest) {
     const normalizedData = Array.isArray(data)
       ? data.map((agent: any) => ({
           ...agent,
-          id: agent.id || agent._id,
+          id: agent.id || agent._id || agent.agent_type,
         }))
-      : { ...data, id: data.id || data._id }
+      : { ...data, id: data.id || data._id || data.agent_type }
 
     return NextResponse.json(normalizedData)
   } catch (error) {
