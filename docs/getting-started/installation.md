@@ -155,10 +155,11 @@ nano voice_2_voice_server/.env
 Required API keys:
 
 ```env
-# Vobiz Telephony
-VOBIZ_API_BASE=https://api.vobiz.ai/api/v1
-VOBIZ_AUTH_ID=your_auth_id
-VOBIZ_AUTH_PASSWORD=your_auth_password
+# Vobiz — API base and public URLs only in .env
+# Auth ID/Token: Dashboard → Integrations (after services start)
+VOBIZ_API_BASE=https://api.vobiz.in/v1
+JOHNAIC_SERVER_URL=https://your-public-voice-url
+JOHNAIC_WEBSOCKET_URL=wss://your-public-voice-url
 
 # LLM Provider (choose one)
 OPENAI_API_KEY=sk-...  # For OpenAI
@@ -196,12 +197,12 @@ ngrok http 7860
 Copy the generated public URL and add it to your `voice_2_voice_server/.env` as follows:
 
 ```env
-# Johnaic / external webhook (example)
+# Public voice server URLs (legacy env name JOHNAIC_*)
 JOHNAIC_SERVER_URL="https://abcd-12-34-56-78.ngrok-free.app"
-JOHNAIC_WEBSOCKET_URL="ws://abcd-12-34-56-78.ngrok-free.app"
+JOHNAIC_WEBSOCKET_URL="wss://abcd-12-34-56-78.ngrok-free.app"
 ```
 
-If ngrok provides a secure websocket endpoint use `wss://` for `JOHNAIC_WEBSOCKET_URL` (recommended).
+See [Public voice server URLs](../deployment/public-voice-urls.md). Prefer `wss://` for WebSocket.
 
 Note: Keep these URLs private; they allow external access to your local server while the tunnel is active.
 

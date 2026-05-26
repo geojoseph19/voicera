@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VoicERA frontend
 
-## Getting Started
+Next.js **dashboard** for operators: agents (assistants), phone numbers, integrations, meetings, knowledge base, and campaigns.
 
-First, run the development server:
+## When you need it
+
+Required for all deployments that use the web UI (port **3000** in Docker, or `make start-frontend` locally).
+
+## Run
+
+### Docker (recommended)
+
+Started with `make start-all-services` as the `frontend` service.
+
+### Local development
 
 ```bash
+cd voicera_frontend
+cp .env.example .env.local   # if present
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Purpose |
+|----------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API for browser |
+| `API_URL` | Server-side backend URL |
+| `VOICE_SERVER_URL` | Voice server (server-side) |
+| `NEXT_PUBLIC_JOHNAIC_SERVER_URL` | Public HTTPS base for telephony answer URLs — [docs](../docs/deployment/public-voice-urls.md) |
 
-## Learn More
+## Depends on
 
-To learn more about Next.js, take a look at the following resources:
+- **Backend** (`:8000`) for data and auth
+- **Voice server** (`:7860`) for Test on Browser and call orchestration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Operator documentation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Dashboard walkthrough](../docs/guide/dashboard.md)
+- [Integrations](../docs/services/integrations.md) — **Vobiz credentials go here**
+- [Frontend service doc](../docs/services/frontend.md)

@@ -14,14 +14,25 @@ The Voice Server is the real-time voice processing engine for VoiceERA, built wi
 - Handle audio input/output
 - Store call recordings and transcripts
 
+## Pipeline and providers (per agent)
+
+STT, TTS, and LLM are chosen **per agent** in the dashboard (`llm_model`, `stt_model`, `tts_model`). There is **no automatic fallback** between cloud and local AI4Bharat — configure each agent explicitly.
+
+| Topic | Documentation |
+|-------|----------------|
+| Provider list | `voice_2_voice_server/README.md` in the repo |
+| Bhili language (`bhb`) | Local STT `/transcribe/bhili`; Kenpath Voice Bhili LLM on `dev` |
+| Browser test | `voice_2_voice_server/docs/talk-on-browser-feature.md` |
+| STT/TTS batching | `dev` branch — `voice_2_voice_server/api/batching.py` |
+
 ## Getting Started
 
 ### Prerequisites
 
 - Python 3.10+
 - pip
-- Vobiz telephony credentials (for production)
-- API keys for AI services (OpenAI, Deepgram, Cartesia, etc.)
+- Vobiz credentials in **Dashboard → Integrations** (for production telephony)
+- AI keys in Integrations or env (OpenAI, Deepgram, Cartesia, Bhashini, etc.)
 
 ### Installation
 

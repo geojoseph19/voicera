@@ -1,6 +1,48 @@
 # API Endpoints Reference
 
-Quick reference for all VoiceERA API endpoints.
+!!! tip "Swagger is the source of truth"
+    For full request/response schemas, use OpenAPI:
+
+    - **Backend:** `http://<host>:8000/docs`
+    - **Voice server:** `http://<host>:7860/docs`
+
+    This page is a quick index. Router registration: `voicera_backend/app/main.py`, `voice_2_voice_server/api/server.py`.
+
+## Backend routers (prefix `/api/v1`)
+
+| Area | Router | Main operations |
+|------|--------|-----------------|
+| Auth / users | `/users` | signup, login, me, forgot/reset password |
+| Agents | `/agents` | CRUD, config by id/phone |
+| Meetings | `/meetings` | create, patch, list, get by id |
+| Recordings | `/call-recordings` | recording metadata |
+| Phone numbers | `/phone-numbers` | list, attach, detach |
+| Vobiz | `/vobiz` | applications, link numbers |
+| Integrations | `/integrations` | store org API keys (Vobiz, OpenAI, …) |
+| Campaigns | `/campaigns` | create, list |
+| Audience | `/audience` | create, list |
+| Batches | `/batches` | CSV upload, run/stop campaigns |
+| Knowledge | `/knowledge` | upload PDFs, list, delete |
+| RAG | `/rag` | retrieve chunks for voice agent |
+| Analytics | `/analytics` | org analytics |
+| Members | `/members` | org members |
+
+## Voice server HTTP
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/` | GET | Status |
+| `/health` | GET | Health |
+| `/outbound/call/` | POST | Start outbound call |
+| `/answer` | GET/POST | Vobiz answer webhook |
+
+WebSocket: `/agent/{agent_id}` — see [WebSocket API](websocket-api.md) and [Telephony](../services/telephony.md).
+
+---
+
+## Legacy quick reference (may not list every route)
+
+Quick reference tables below. Prefer Swagger for accuracy.
 
 ## Authentication
 

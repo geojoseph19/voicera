@@ -344,4 +344,4 @@ make start-all-services
 
 ## License
 
-Proprietary - All rights reserved.
+MIT License — Copyright (c) 2026 COSS India. See [LICENSE](LICENSE).

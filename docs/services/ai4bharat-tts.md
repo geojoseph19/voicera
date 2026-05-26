@@ -1,10 +1,32 @@
 # AI4Bharat TTS Service
 
-Documentation for the AI4Bharat Text-to-Speech (TTS) service integration.
+Optional on-premises **Indic text-to-speech** (Parler TTS) over **WebSocket** (default port **8002**).
+
+## WebSocket protocol
+
+**Client → server** (one JSON object per utterance):
+
+```json
+{
+  "prompt": "text to speak",
+  "description": "voice/style description",
+  "language": "hi"
+}
+```
+
+Use `"bhb"` or `"bhili"` for Bhili.
+
+**Server → client:** metadata JSON, then binary **float32 mono PCM** chunks, then `{ "type": "done" }`.
+
+- Sample rate: **44100 Hz**
+- **Code:** `ai4bharat_tts_server/server.py`, `inference/runner.py`
+- **GPU** expected for production Parler inference
+
+Voice server connects when agent uses `indic-parler-tts` — see `voice_2_voice_server/services/ai4bharat/`.
 
 ## Overview
 
-This optional service provides **natural speech synthesis for Indic languages** using AI4Bharat's IndicParler model.
+This optional service provides **natural speech synthesis for Indic languages** using Parler TTS.
 
 **Supported Languages:**
 - Hindi (hi)

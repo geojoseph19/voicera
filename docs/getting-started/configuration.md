@@ -80,14 +80,19 @@ SMTP_FROM=noreply@voicera.ai
 
 ### File: `voice_2_voice_server/.env`
 
-#### Vobiz Telephony
+#### Vobiz telephony
+
+!!! important "Credentials in Integrations"
+    **Vobiz Auth ID** and **Vobiz Auth Token** are entered in **Dashboard → Integrations** after the stack is running. Do not rely on `.env` for per-organization telephony auth in production. See [Integrations](../services/integrations.md) and [Telephony](../services/telephony.md).
 
 ```env
-# Vobiz API Configuration
-VOBIZ_API_BASE=https://api.vobiz.ai/api/v1
-VOBIZ_AUTH_ID=your_auth_id              # From Vobiz dashboard
-VOBIZ_AUTH_PASSWORD=your_auth_password  # From Vobiz dashboard
-VOBIZ_ENABLED=true
+# Voice server — infrastructure only
+VOBIZ_API_BASE=https://api.vobiz.in/v1
+VOBIZ_CALLER_ID=+91XXXXXXXXXX          # Optional default outbound caller ID
+
+# Public URLs for webhooks and WebSocket (see Public voice server URLs doc)
+JOHNAIC_SERVER_URL=https://your-voice-domain.example
+JOHNAIC_WEBSOCKET_URL=wss://your-voice-domain.example
 ```
 
 #### LLM Providers
@@ -158,19 +163,11 @@ VOBIZ_ENABLED=true
     GOOGLE_CLOUD_TTS_CREDENTIALS=./path/to/credentials.json
     ```
 
-    #### Johnaic / External Webhook (Optional)
+    #### Public voice server URLs
 
-    If you expose your local `voice_2_voice_server` via Ngrok (or another tunnel), set the public URLs here so external systems can call your local server.
+    `JOHNAIC_*` variables are the **public HTTPS/WSS base** for telephony webhooks and live audio — not a third-party product. See [Public voice server URLs](../deployment/public-voice-urls.md).
 
-    ```env
-    # Example (replace with your Ngrok URL)
-    JOHNAIC_SERVER_URL="https://abcd-12-34-56-78.ngrok-free.app"
-    JOHNAIC_WEBSOCKET_URL="ws://abcd-12-34-56-78.ngrok-free.app"
-    ```
-
-    Use `wss://` in `JOHNAIC_WEBSOCKET_URL` when Ngrok provides a secure websocket endpoint.
-
-    See the [Installation](installation.md#optional-ngrok-expose-local-voice-server) section for Ngrok setup steps and examples.
+    For local development with ngrok, set your tunnel URLs and prefer `wss://` for `JOHNAIC_WEBSOCKET_URL`. See [Installation](installation.md).
 
 #### Backend Integration
 

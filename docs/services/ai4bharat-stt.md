@@ -1,10 +1,35 @@
 # AI4Bharat STT Service
 
-Documentation for the AI4Bharat Speech-to-Text (STT) service integration.
+Optional on-premises **Indic speech-to-text** (NeMo). The core VoicERA stack can run with cloud STT only.
+
+## HTTP API (port 8001)
+
+| Endpoint | Method | Body | Response |
+|----------|--------|------|----------|
+| `/` | GET | — | Status |
+| `/health` | GET | — | Health |
+| `/transcribe` | POST | `{ "audio_b64": string, "language_id": string }` (default `hi`) | `{ "text": string }` |
+| `/transcribe/bhili` | POST | Same | Bhili model (`language_id` / agent `bhb`) |
+
+Audio: base64 **16 kHz int16 PCM**. Batching: `MAX_BATCH_SIZE=16`, `BATCH_TIMEOUT=0.1s`. **Code:** `ai4bharat_stt_server/server.py`
+
+### Model paths (environment)
+
+| Variable | Purpose |
+|----------|---------|
+| `INDIC_NEMO_PATH` | Main Indic NeMo checkpoint file |
+| `BHILI_NEMO_PATH` | Bhili checkpoint |
+| `BHILI_ENABLE` | `"yes"` / `"no"` |
+| `HF_TOKEN` | Optional HuggingFace token |
+| `PORT` | Default `8001` |
+
+**GPU:** NVIDIA strongly recommended for production; CPU for development only. Measure VRAM for your checkpoints on target hardware.
+
+On **`dev`**, agents with language **`bhb`** and provider `indic-conformer-stt` use `/transcribe/bhili`.
 
 ## Overview
 
-This optional service provides **high-accuracy speech-to-text for Indic languages** using AI4Bharat's IndicConformer model.
+This optional service provides **high-accuracy speech-to-text for Indic languages** using AI4Bharat NeMo models.
 
 **Supported Languages:**
 - Hindi (hi)

@@ -42,6 +42,18 @@ mkdocs build
 ```
 docs/
 ├── index.md                          # Documentation homepage
+├── guide/                            # Operator-focused (plain language)
+│   ├── overview.md
+│   ├── prerequisites.md
+│   ├── dashboard.md
+│   ├── deployment-walkthrough.md
+│   ├── verification.md
+│   ├── operations.md
+│   ├── faq.md
+│   └── glossary.md
+├── source-briefs/                    # Writer source material (from COSS review)
+├── legal/
+│   └── license.md
 ├── getting-started/
 │   ├── installation.md               # Installation guide
 │   ├── quickstart.md                 # 5-minute quick start
@@ -54,6 +66,9 @@ docs/
 │   ├── backend.md                    # Backend API service
 │   ├── voice-server.md               # Voice processing server
 │   ├── frontend.md                   # Frontend web app
+│   ├── integrations.md               # Dashboard API keys + Vobiz
+│   ├── telephony.md                  # Vobiz call flow
+│   ├── knowledge-base.md             # RAG / PDF knowledge
 │   ├── ai4bharat-stt.md              # STT service
 │   └── ai4bharat-tts.md              # TTS service
 ├── api/

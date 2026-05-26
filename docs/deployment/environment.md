@@ -112,15 +112,16 @@ SMTP_FROM=noreply@voicera.ai
 
 ### File: `voice_2_voice_server/.env`
 
-#### Vobiz Telephony
+#### Vobiz telephony
+
+!!! important
+    **Vobiz Auth ID** and **Vobiz Auth Token** are stored in **Dashboard → Integrations**, not in `.env` for normal operation. See [Integrations](../services/integrations.md).
 
 ```env
-# Vobiz API Configuration
-VOBIZ_ENABLED=true
-VOBIZ_API_BASE=https://api.vobiz.ai/api/v1
-VOBIZ_AUTH_ID=your_auth_id
-VOBIZ_AUTH_PASSWORD=your_auth_password
-VOBIZ_WEBHOOK_URL=https://yourdomain.com/vobiz/webhook
+VOBIZ_API_BASE=https://api.vobiz.in/v1
+VOBIZ_CALLER_ID=+91XXXXXXXXXX
+JOHNAIC_SERVER_URL=https://your-voice-domain.example
+JOHNAIC_WEBSOCKET_URL=wss://your-voice-domain.example
 ```
 
 #### LLM Provider
