@@ -215,9 +215,11 @@ export default function AgentDetailPage() {
   // Form state
   const [systemPrompt, setSystemPrompt] = useState("")
   const [greetingMessage, setGreetingMessage] = useState("")
+  const [agentType, setAgentType] = useState("")
   const [language, setLanguage] = useState("")
   const [llmProvider, setLlmProvider] = useState("")
   const [llmModel, setLlmModel] = useState("")
+  const [kenpathEnvironment, setKenpathEnvironment] = useState<"prod" | "dev">("prod")
   const [knowledgeEnabled, setKnowledgeEnabled] = useState(false)
   const [knowledgeDocumentIds, setKnowledgeDocumentIds] = useState<string[]>([])
   const [knowledgeTopK, setKnowledgeTopK] = useState(3)
@@ -396,6 +398,7 @@ export default function AgentDetailPage() {
     setAgent(null)
     setSystemPrompt("")
     setGreetingMessage("")
+    setAgentType("")
     setLanguage("")
     setLlmProvider("")
     setLlmModel("")
@@ -448,6 +451,7 @@ export default function AgentDetailPage() {
           const agentData = await getAgent(agentId, userData.org_id)
           console.log("Full agent data received:", JSON.stringify(agentData, null, 2))
           setAgent(agentData)
+          setAgentType(agentData.agent_type || "")
 
           setSystemPrompt(agentData.agent_config?.system_prompt || "")
           setGreetingMessage(agentData.agent_config?.greeting_message || "")
@@ -456,6 +460,8 @@ export default function AgentDetailPage() {
           const llmProviderName = agentData.agent_config?.llm_model?.name || ""
           setLlmProvider(getProviderIdFromName(llmProviderName))
           setLlmModel(agentData.agent_config?.llm_model?.model || "")
+          const vistaarEnv = agentData.agent_config?.llm_model?.vistaar_environment
+          setKenpathEnvironment(vistaarEnv === "dev" ? "dev" : "prod")
           setKnowledgeEnabled(Boolean((agentData.agent_config as any)?.knowledge_base_enabled))
           setKnowledgeDocumentIds(
             Array.isArray((agentData.agent_config as any)?.knowledge_document_ids)
@@ -600,6 +606,7 @@ export default function AgentDetailPage() {
       llm_model: {
         name: llmProvider || "",
         ...(llmProvider && llmProvider !== "kenpath" && llmModel && { model: llmModel }),
+        ...(llmProvider === "kenpath" && { vistaar_environment: kenpathEnvironment }),
       },
       stt_model: {
         name: sttProvider || "",
@@ -641,9 +648,11 @@ export default function AgentDetailPage() {
     const originalNormalized = JSON.stringify(normalize(originalConfig))
     const currentNormalized = JSON.stringify(normalize(currentConfig))
 
-    const hasChanged = originalNormalized !== currentNormalized
+    const hasConfigChanged = originalNormalized !== currentNormalized
+    const hasAgentTypeChanged = agentType.trim() !== (agent.agent_type || "").trim()
+    const hasChanged = hasConfigChanged || hasAgentTypeChanged
     setHasChanges(hasChanged)
-  }, [systemPrompt, greetingMessage, language, llmProvider, llmModel, knowledgeEnabled, knowledgeDocumentIds, knowledgeTopK, sttProvider, sttModel, ttsProvider, ttsModel, ttsVoice, speed, originalConfig, agent])
+  }, [agentType, systemPrompt, greetingMessage, language, llmProvider, llmModel, kenpathEnvironment, knowledgeEnabled, knowledgeDocumentIds, knowledgeTopK, sttProvider, sttModel, ttsProvider, ttsModel, ttsVoice, speed, originalConfig, agent])
 
   const handleSaveClick = () => {
     setShowConfirmModal(true)
@@ -651,18 +660,25 @@ export default function AgentDetailPage() {
 
   const handleSave = async () => {
     if (!agent || !user) return
+    const trimmedAgentType = agentType.trim()
+    if (!trimmedAgentType) {
+      setErrorMessage("Agent name cannot be empty")
+      return
+    }
 
     setShowConfirmModal(false)
     setIsSaving(true)
     try {
       const languageName = language || ""
-      // Generate agent_id from agent_type (required field)
-      const agentId = agent.agent_id || agent.agent_type.replace(/\s+/g, '_').toLowerCase()
+      const originalAgentType = (agent.agent_type || agentId).trim()
+      const agentIdSlug =
+        agent.agent_id || originalAgentType.replace(/\s+/g, "_").toLowerCase()
 
       const updatedConfig: CreateAgentRequest = {
         org_id: user.org_id,
-        agent_type: agent.agent_type, // Use original agent_type - required for backend to find the agent
-        agent_id: agentId,
+        agent_type: trimmedAgentType,
+        agent_id: agentIdSlug,
+        original_agent_type: originalAgentType,
         agent_category: (agent as any).agent_category || "voicera_telephony",
         agent_config: {
           ...agent.agent_config,
@@ -676,6 +692,7 @@ export default function AgentDetailPage() {
           llm_model: {
             name: getProviderOfficialName(llmProvider),
             ...(llmProvider !== "kenpath" && { model: llmModel }),
+            ...(llmProvider === "kenpath" && { vistaar_environment: kenpathEnvironment }),
           },
           stt_model: {
             name: getProviderOfficialName(sttProvider),
@@ -703,11 +720,16 @@ export default function AgentDetailPage() {
         },
       }
 
-      const updatedAgent = await updateAgent(agentId, updatedConfig)
+      const updatedAgent = await updateAgent(originalAgentType, updatedConfig)
 
       if (user?.org_id) {
-        const refreshedAgent = await getAgent(agentId, user.org_id)
+        const refreshedAgent = await getAgent(trimmedAgentType, user.org_id)
         setAgent(refreshedAgent)
+        setAgentType(refreshedAgent.agent_type || trimmedAgentType)
+
+        if (trimmedAgentType !== originalAgentType) {
+          router.replace(`/assistants/${encodeURIComponent(trimmedAgentType)}`)
+        }
 
         if (refreshedAgent?.agent_config && typeof refreshedAgent.agent_config === 'object') {
           try {
@@ -725,6 +747,7 @@ export default function AgentDetailPage() {
         }
       } else if (updatedAgent?.agent_config && typeof updatedAgent.agent_config === 'object') {
         setAgent(updatedAgent)
+        setAgentType((updatedAgent as Agent).agent_type || trimmedAgentType)
         try {
           setOriginalConfig(JSON.parse(JSON.stringify(updatedAgent.agent_config)))
         } catch (e) {
@@ -893,6 +916,9 @@ export default function AgentDetailPage() {
                       onValueChange={(v) => {
                         setLlmProvider(v);
                         setLlmModel("");
+                        if (v === "kenpath") {
+                          setKenpathEnvironment("prod")
+                        }
                         if (v !== "openai") {
                           setKnowledgeEnabled(false)
                           setKnowledgeDocumentIds([])
@@ -929,6 +955,35 @@ export default function AgentDetailPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {llmProvider === "kenpath" && (
+                    <div>
+                      <label className="text-sm font-semibold text-slate-700 mb-2 block">
+                        <span className="inline-flex items-center gap-2">
+                          Vistaar API
+                        </span>
+                      </label>
+                      <Select
+                        value={kenpathEnvironment}
+                        onValueChange={(v) => setKenpathEnvironment(v as "prod" | "dev")}
+                      >
+                        <SelectTrigger className="border-slate-200 h-11 shadow-sm rounded-md focus:ring-slate-300 transition focus:border-slate-500 bg-white">
+                          <SelectValue placeholder="Select API environment" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[100] rounded-md shadow-lg">
+                          <SelectItem value="prod" className="hover:bg-slate-100 transition">
+                            Production
+                          </SelectItem>
+                          <SelectItem value="dev" className="hover:bg-slate-100 transition">
+                            Development
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-500 mt-2 pl-1">
+                        Environment for Hindi/Marathi streaming. Voice Bhili uses a separate endpoint.
+                      </p>
+                    </div>
+                  )}
 
                   {llmProvider && llmProvider !== "kenpath" && (
                     <div>
@@ -1317,6 +1372,18 @@ export default function AgentDetailPage() {
               </h2>
 
               <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
+                    Agent Name
+                  </label>
+                  <Input
+                    value={agentType}
+                    onChange={(e) => setAgentType(e.target.value)}
+                    className="border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+                    placeholder="Enter agent name"
+                  />
+                </div>
+
                 <div>
                   <label className="text-sm font-medium text-slate-700 mb-2 block">
                     Greeting Message

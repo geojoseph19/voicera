@@ -69,9 +69,14 @@ voice_2_voice_server/
    export MINIO_SECRET_KEY="minioadmin"
    export MINIO_SECURE="false"
    
-   # Backend API (optional)
+   # Backend API (required for agent config + Plivo/Vobiz integration keys)
    export VOICERA_BACKEND_URL="http://localhost:8000"
    export INTERNAL_API_KEY="your-internal-api-key"
+   
+   # Plivo (credentials live in backend Integrations; set public URLs for webhooks)
+   export PLIVO_API_BASE="https://api.plivo.com/v1"
+   export JOHNAIC_SERVER_URL="https://your-server-domain.com"
+   export JOHNAIC_WEBSOCKET_URL="wss://your-server-domain.com"
    ```
 
 3. **Run the server:**
@@ -219,8 +224,10 @@ Agent configs are JSON files in `agent_configs/`. Example:
 | `INDIC_STT_SERVER_URL` | * | - | AI4Bharat STT HTTP server base URL (no path); `/transcribe` or `/transcribe/bhili` is appended (`bhb` language uses the latter) |
 | `INDIC_TTS_SERVER_URL` | * | - | AI4Bharat TTS server URL |
 | `KENPATH_JWT_PRIVATE_KEY_PATH` | * | - | Path to RS256 private key PEM for Kenpath Vistaar `/api/voice/stream` (not used for Voice Bhili) |
-| `KENPATH_VISTAAR_API_URL` | No | `https://voice-prod.mahapocra.gov.in` | Base URL for Kenpath streaming `GET .../api/voice/` |
-| `KENPATH_VOICE_BHILI_URL` | No | `https://vistaar-dev.mahapocra.gov.in/api/voice-bhili` | Voice Bhili JSON API: when agent `language` is `bhb`, Kenpath LLM uses this GET endpoint (dev) |
+| `KENPATH_VISTAAR_API_URL_PROD` | No | `https://voice-prod.mahapocra.gov.in` | Production base URL for Kenpath streaming `GET .../api/voice/` (used when agent `llm_model.vistaar_environment` is `prod`) |
+| `KENPATH_VISTAAR_API_URL_DEV` | No | `https://vistaar-dev.mahapocra.gov.in` | Development base URL for Kenpath streaming (used when `vistaar_environment` is `dev`) |
+| `KENPATH_VISTAAR_API_URL` | No | (same as prod) | Legacy prod fallback if `KENPATH_VISTAAR_API_URL_PROD` is unset |
+| `KENPATH_VOICE_BHILI_URL` | No | `https://vistaar-dev.mahapocra.gov.in/api/voice-bhili` | Voice Bhili JSON API: when agent `language` is `bhb`, Kenpath LLM uses this GET endpoint (independent of prod/dev selector) |
 
 \* Required based on configured providers
 

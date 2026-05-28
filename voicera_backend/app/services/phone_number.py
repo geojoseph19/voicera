@@ -9,6 +9,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _last_link_fields(
+    action: str, agent_type: Optional[str], member_email: Optional[str], at: str
+) -> Dict[str, str]:
+    """Optional audit fields for Numbers UI; omitted when member_email is missing."""
+    if not member_email:
+        return {}
+    return {
+        "last_link_action": action,
+        "last_link_agent_type": agent_type or "",
+        "last_link_by_email": member_email,
+        "last_link_at": at,
+    }
+
+
 def get_all_phone_numbers_by_org(org_id: str) -> List[Dict[str, Any]]:
     """
     Fetch all phone numbers for a given organization.
@@ -28,7 +43,13 @@ def get_all_phone_numbers_by_org(org_id: str) -> List[Dict[str, Any]]:
         logger.error(f"Error fetching phone numbers for org {org_id}: {str(e)}")
         return []
 
-def attach_phone_number_to_agent(phone_number: str, provider: str, agent_type: Optional[str] = None, org_id: Optional[str] = None) -> Dict[str, Any]:
+def attach_phone_number_to_agent(
+    phone_number: str,
+    provider: str,
+    agent_type: Optional[str] = None,
+    org_id: Optional[str] = None,
+    member_email: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Attach a phone number to an agent by agent_type.
     
@@ -76,7 +97,8 @@ def attach_phone_number_to_agent(phone_number: str, provider: str, agent_type: O
             # Update existing phone number
             update_doc = {
                 "provider": provider,
-                "updated_at": current_time
+                "updated_at": current_time,
+                **_last_link_fields("attached", agent_type, member_email, current_time),
             }
             
             if agent_type:
@@ -101,7 +123,8 @@ def attach_phone_number_to_agent(phone_number: str, provider: str, agent_type: O
                 "phone_number": phone_number,
                 "provider": provider,
                 "created_at": current_time,
-                "updated_at": current_time
+                "updated_at": current_time,
+                **_last_link_fields("attached", agent_type, member_email, current_time),
             }
             
             if agent_type:
@@ -143,7 +166,9 @@ def get_phone_number_by_agent_type(agent_type: str, org_id: str) -> Optional[Dic
         logger.error(f"Error fetching phone number for agent {agent_type}: {str(e)}")
         return None
 
-def detach_phone_number(phone_number: str, org_id: str) -> Dict[str, Any]:
+def detach_phone_number(
+    phone_number: str, org_id: str, member_email: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Detach a phone number from its agent by removing the agent_type.
     
@@ -173,9 +198,13 @@ def detach_phone_number(phone_number: str, org_id: str) -> Dict[str, Any]:
         
         # Remove agent_type association
         current_time = datetime.now().isoformat()
+        set_doc = {
+            "updated_at": current_time,
+            **_last_link_fields("detached", agent_type, member_email, current_time),
+        }
         result = phone_number_table.update_one(
             {"phone_number": phone_number},
-            {"$unset": {"agent_type": ""}, "$set": {"updated_at": current_time}}
+            {"$unset": {"agent_type": ""}, "$set": set_doc},
         )
         
         # Remove phone number from agent config

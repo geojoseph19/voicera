@@ -34,12 +34,35 @@ KENPATH_BHILI_HOLD_MESSAGES = [
     "बेन घेडी, आय माहिती मिलवुहू",
 ]
 
+DEFAULT_VISTAAR_PROD_URL = "https://voice-prod.mahapocra.gov.in"
+DEFAULT_VISTAAR_DEV_URL = "https://vistaar-dev.mahapocra.gov.in"
+
+
+def normalize_vistaar_environment(environment: Optional[str]) -> str:
+    """Normalize vistaar environment to 'prod' or 'dev'."""
+    if environment and str(environment).strip().lower() == "dev":
+        return "dev"
+    return "prod"
+
+
+def resolve_vistaar_base_url(environment: Optional[str]) -> str:
+    """Resolve Vistaar base URL from environment and deployment env vars."""
+    env = normalize_vistaar_environment(environment)
+    if env == "dev":
+        return os.environ.get("KENPATH_VISTAAR_API_URL_DEV", DEFAULT_VISTAAR_DEV_URL)
+    return (
+        os.environ.get("KENPATH_VISTAAR_API_URL_PROD")
+        or os.environ.get("KENPATH_VISTAAR_API_URL")
+        or DEFAULT_VISTAAR_PROD_URL
+    )
+
 
 class KenpathLLM(OpenAILLMService):
     def __init__(
         self,
         vistaar_session_id: Optional[str] = None,
         language: Optional[str] = None,
+        vistaar_environment: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -49,10 +72,8 @@ class KenpathLLM(OpenAILLMService):
         # JWT config
         self._private_key = Path(os.environ["KENPATH_JWT_PRIVATE_KEY_PATH"]).read_text()
         self._jwt_phone = os.environ.get("KENPATH_JWT_PHONE", "+91-9036722772")
-        self._base_url = os.environ.get(
-            "KENPATH_VISTAAR_API_URL",
-            "https://voice-prod.mahapocra.gov.in",
-        )
+        self._vistaar_environment = normalize_vistaar_environment(vistaar_environment)
+        self._base_url = resolve_vistaar_base_url(self._vistaar_environment)
 
         # Shared aiohttp session (created lazily)
         self._session: Optional[aiohttp.ClientSession] = None
@@ -89,7 +110,7 @@ class KenpathLLM(OpenAILLMService):
             )
         else:
             logger.info(
-                f"🤖 KenpathLLM initialized | timeout={self.response_timeout}s | url={self._base_url} | lang={self._source_lang}"
+                f"🤖 KenpathLLM initialized | env={self._vistaar_environment} | timeout={self.response_timeout}s | url={self._base_url} | lang={self._source_lang}"
             )
         if self._vistaar_session_id:
             logger.info(f"📞 Vistaar session ID for this call: {self._vistaar_session_id}")

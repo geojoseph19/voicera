@@ -32,24 +32,24 @@ export async function PUT(
       )
     }
 
-    // Extract agent_type from agentId
-    // The agentId format is typically: "org_id-agent_type-timestamp"
-    // We need to use the ORIGINAL agent_type from the ID to find the agent in the backend
-    let agentTypeForUrl = body.agent_type || ""
-    
-    // Try to extract agent_type from agentId if it's in the format "org_id-agent_type-timestamp"
-    const parts = agentId.split('-')
-    if (parts.length >= 3) {
-      // The agent_type is everything between org_id (first part) and timestamp (last part)
-      const extractedAgentType = parts.slice(1, -1).join('-')
-      if (extractedAgentType) {
-        agentTypeForUrl = extractedAgentType
+    // Backend PUT looks up by ORIGINAL agent_type. body.agent_type may be the new name when renaming.
+    let agentTypeForUrl = ""
+
+    if (typeof body.original_agent_type === "string" && body.original_agent_type.trim()) {
+      agentTypeForUrl = body.original_agent_type.trim()
+    } else {
+      agentTypeForUrl = agentId
+      const parts = agentId.split("-")
+      if (parts.length >= 3) {
+        const extractedAgentType = parts.slice(1, -1).join("-")
+        if (extractedAgentType) {
+          agentTypeForUrl = extractedAgentType
+        }
+      } else if (parts.length === 2) {
+        agentTypeForUrl = parts[1] || agentId
       }
-    } else if (parts.length === 2) {
-      // Fallback: if only 2 parts, the second might be the agent_type
-      agentTypeForUrl = parts[1] || body.agent_type || ""
     }
-    
+
     if (!agentTypeForUrl) {
       return NextResponse.json(
         { error: "Could not determine agent_type from agentId" },
@@ -57,9 +57,8 @@ export async function PUT(
       )
     }
 
-    // Forward the request to the backend
-    // IMPORTANT: Use the original agent_type from the agentId in the URL path
-    // The backend uses this to find the agent. If we use a new agent_type, it won't find the agent.
+    const { original_agent_type: _original, ...backendBody } = body
+
     const response = await fetch(`${API_BASE_URL}/api/v1/agents/${encodeURIComponent(agentTypeForUrl)}`, {
       method: "PUT",
       headers: {
@@ -67,7 +66,7 @@ export async function PUT(
         "Content-Type": "application/json",
         "Authorization": authHeader,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(backendBody),
     })
 
     const data = await response.json()
@@ -141,7 +140,7 @@ export async function GET(
     const normalizedAgents = Array.isArray(agents)
       ? agents.map((a: any) => ({
           ...a,
-          id: a.id || a._id,
+          id: a.id || a._id || a.agent_type,
         }))
       : []
 
@@ -150,38 +149,49 @@ export async function GET(
       (a: any) => String(a.id) === decodedAgentId || String(a._id) === decodedAgentId
     )
 
-    // If not found by ID, try matching by agent_id (case-insensitive)
+    // Match by agent_type or agent_id (primary navigation keys)
     if (!agent) {
       agent = normalizedAgents.find(
-        (a: any) => a.agent_id && a.agent_id.toLowerCase() === decodedAgentIdLower
+        (a: any) =>
+          (a.agent_type && a.agent_type.toLowerCase() === decodedAgentIdLower) ||
+          (a.agent_id && a.agent_id.toLowerCase() === decodedAgentIdLower)
       )
     }
 
-    // If not found by ID, try to extract agent_type from composite ID and match by agent_type (case-insensitive)
-    // The agentId format might be: "org_id-agent_type-timestamp"
+    // Legacy composite IDs: "org_id-agent_type-<timestamp>" (timestamp may be ISO with hyphens)
     if (!agent) {
-      const parts = decodedAgentId.split('-')
+      agent = normalizedAgents.find((a: any) => {
+        if (!a.org_id || !a.agent_type) return false
+        const timestamp = a.created_at || a.updated_at || ""
+        if (!timestamp) return false
+        return (
+          decodedAgentId === `${a.org_id}-${a.agent_type}-${timestamp}` ||
+          decodedAgentId.startsWith(`${a.org_id}-${a.agent_type}-`)
+        )
+      })
+    }
+
+    // Fallback: hyphen-split composite (only reliable when timestamp has no hyphens)
+    if (!agent) {
+      const parts = decodedAgentId.split("-")
       if (parts.length >= 3) {
-        const extractedAgentType = parts.slice(1, -1).join('-')
+        const extractedAgentType = parts.slice(1, -1).join("-")
         if (extractedAgentType) {
           agent = normalizedAgents.find(
-            (a: any) => a.agent_type && a.agent_type.toLowerCase() === extractedAgentType.toLowerCase()
+            (a: any) =>
+              a.agent_type &&
+              a.agent_type.toLowerCase() === extractedAgentType.toLowerCase()
           )
         }
       } else if (parts.length === 2) {
         const possibleAgentType = parts[1]
         if (possibleAgentType) {
           agent = normalizedAgents.find(
-            (a: any) => a.agent_type && a.agent_type.toLowerCase() === possibleAgentType.toLowerCase()
+            (a: any) =>
+              a.agent_type &&
+              a.agent_type.toLowerCase() === possibleAgentType.toLowerCase()
           )
         }
-      }
-      
-      // If still not found, try matching by agent_type directly (case-insensitive)
-      if (!agent) {
-        agent = normalizedAgents.find(
-          (a: any) => a.agent_type && a.agent_type.toLowerCase() === decodedAgentIdLower
-        )
       }
     }
 
@@ -221,24 +231,24 @@ export async function DELETE(
     // Extract id from params (Next.js 16+ params are a Promise)
     const params = await Promise.resolve(context.params)
     const agentId = decodeURIComponent(params.id)
+    const { searchParams } = new URL(request.url)
+    const agentTypeParam = searchParams.get("agent_type")
 
     // Extract agent_type from agentId
     // The agentId format is typically: "org_id-agent_type-timestamp"
     // We need to extract the agent_type to call the backend
-    let agentTypeForUrl = ""
-    const parts = agentId.split('-')
-    
-    if (parts.length >= 3) {
+    let agentTypeForUrl = agentTypeParam ? decodeURIComponent(agentTypeParam).trim() : ""
+    const parts = agentId.split("-")
+
+    if (!agentTypeForUrl && parts.length >= 3) {
       // The agent_type is everything between org_id (first part) and timestamp (last part)
-      const extractedAgentType = parts.slice(1, -1).join('-')
+      const extractedAgentType = parts.slice(1, -1).join("-")
       if (extractedAgentType) {
         agentTypeForUrl = extractedAgentType
       }
-    } else if (parts.length === 2) {
-      // Fallback: if only 2 parts, the second might be the agent_type
+    } else if (!agentTypeForUrl && parts.length === 2) {
       agentTypeForUrl = parts[1] || ""
-    } else {
-      // If it's a single part, it might be the agent_type directly
+    } else if (!agentTypeForUrl) {
       agentTypeForUrl = agentId
     }
     
@@ -276,4 +286,3 @@ export async function DELETE(
     )
   }
 }
-

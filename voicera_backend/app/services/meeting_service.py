@@ -135,6 +135,158 @@ def fetch_meeting_details(meeting_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _build_meetings_query(
+    org_id: str,
+    agent_type: Optional[str] = None,
+    from_number: Optional[str] = None,
+    to_number: Optional[str] = None,
+    inbound: Optional[bool] = None,
+    call_status: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build MongoDB query mirroring History tab client filters."""
+    conditions: List[Dict[str, Any]] = [{"org_id": org_id}]
+
+    if agent_type:
+        conditions.append({"agent_type": agent_type})
+    if from_number:
+        conditions.append({"from_number": from_number})
+    if to_number:
+        conditions.append({"to_number": to_number})
+    if inbound is not None:
+        conditions.append({"inbound": inbound})
+
+    if call_status:
+        status_lower = call_status.strip().lower()
+        if status_lower == "busy":
+            conditions.append({"call_busy": True})
+        elif status_lower == "completed":
+            conditions.append({
+                "$and": [
+                    {"$or": [{"call_busy": {"$ne": True}}, {"call_busy": {"$exists": False}}]},
+                    {"end_time_utc": {"$exists": True, "$nin": [None, ""]}},
+                ]
+            })
+        elif status_lower == "in progress":
+            conditions.append({
+                "$and": [
+                    {"$or": [{"call_busy": {"$ne": True}}, {"call_busy": {"$exists": False}}]},
+                    {
+                        "$or": [
+                            {"end_time_utc": {"$exists": False}},
+                            {"end_time_utc": None},
+                            {"end_time_utc": ""},
+                        ]
+                    },
+                ]
+            })
+
+    if date_from or date_to:
+        expr_parts: List[Dict[str, Any]] = []
+        coalesced = {"$ifNull": ["$start_time_utc", "$created_at"]}
+        if date_from:
+            expr_parts.append({"$gte": [coalesced, date_from]})
+        if date_to:
+            expr_parts.append({"$lte": [coalesced, date_to]})
+        if expr_parts:
+            conditions.append({"$expr": {"$and": expr_parts}})
+
+    if len(conditions) == 1:
+        return conditions[0]
+    return {"$and": conditions}
+
+
+def _meetings_sort(
+    date_sort_order: str = "latest",
+    duration_sort_order: Optional[str] = None,
+) -> List[tuple]:
+    if duration_sort_order == "longest":
+        return [("duration", -1), ("created_at", -1)]
+    if duration_sort_order == "shortest":
+        return [("duration", 1), ("created_at", -1)]
+    if date_sort_order == "oldest":
+        return [("created_at", 1)]
+    return [("created_at", -1)]
+
+
+def fetch_meetings_paginated(
+    org_id: str,
+    page: int = 1,
+    limit: int = 50,
+    agent_type: Optional[str] = None,
+    from_number: Optional[str] = None,
+    to_number: Optional[str] = None,
+    inbound: Optional[bool] = None,
+    call_status: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    date_sort_order: str = "latest",
+    duration_sort_order: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Fetch a page of meetings for an org with filters and sort applied server-side.
+    """
+    try:
+        db = get_database()
+        meeting_table = db["CallLogs"]
+        query = _build_meetings_query(
+            org_id=org_id,
+            agent_type=agent_type,
+            from_number=from_number,
+            to_number=to_number,
+            inbound=inbound,
+            call_status=call_status,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        total = meeting_table.count_documents(query)
+        skip = (page - 1) * limit
+        sort_spec = _meetings_sort(date_sort_order, duration_sort_order)
+        cursor = (
+            meeting_table.find(query)
+            .sort(sort_spec)
+            .skip(skip)
+            .limit(limit)
+        )
+        meetings = list(cursor)
+        serialized = _serialize_docs(meetings)
+        items = transform_meetings_for_frontend(serialized)
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "limit": limit,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching paginated meetings: {str(e)}")
+        return {"items": [], "total": 0, "page": page, "limit": limit}
+
+
+def fetch_meeting_filter_options(org_id: str) -> Dict[str, List[str]]:
+    """Distinct values for History filter dropdowns."""
+    try:
+        db = get_database()
+        meeting_table = db["CallLogs"]
+        base = {"org_id": org_id}
+
+        def _distinct(field: str) -> List[str]:
+            values = meeting_table.distinct(field, base)
+            return sorted(
+                v for v in values
+                if v is not None and str(v).strip() != ""
+            )
+
+        return {
+            "agent_types": _distinct("agent_type"),
+            "from_numbers": _distinct("from_number"),
+            "to_numbers": _distinct("to_number"),
+        }
+    except Exception as e:
+        logger.error(f"Error fetching meeting filter options: {str(e)}")
+        return {"agent_types": [], "from_numbers": [], "to_numbers": []}
+
+
 def fetch_meetings_of_org(org_id: str) -> List[Dict[str, Any]]:
     """
     Fetch all meetings for a given org.

@@ -58,6 +58,8 @@ class AgentConfigCreate(BaseModel):
     telephony_provider: Optional[str] = None
     vobiz_app_id: Optional[str] = None
     vobiz_answer_url: Optional[str] = None
+    plivo_app_id: Optional[str] = None
+    plivo_answer_url: Optional[str] = None
 
 class AgentConfigResponse(BaseModel):
     """Schema for agent config response."""
@@ -71,10 +73,14 @@ class AgentConfigResponse(BaseModel):
     telephony_provider: Optional[str] = None
     vobiz_app_id: Optional[str] = None
     vobiz_answer_url: Optional[str] = None
+    plivo_app_id: Optional[str] = None
+    plivo_answer_url: Optional[str] = None
+    created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
 class AgentConfigUpdate(BaseModel):
     """Schema for updating agent config."""
+    agent_type: Optional[str] = None
     agent_config: Dict[str, Any]
     agent_category: Optional[str] = None
     phone_number: Optional[str] = None
@@ -83,6 +89,8 @@ class AgentConfigUpdate(BaseModel):
     telephony_provider: Optional[str] = None
     vobiz_app_id: Optional[str] = None
     vobiz_answer_url: Optional[str] = None
+    plivo_app_id: Optional[str] = None
+    plivo_answer_url: Optional[str] = None
 
 # Meeting Models
 class MeetingCreate(BaseModel):
@@ -123,6 +131,19 @@ class MeetingResponse(BaseModel):
 class MeetingUpdate(BaseModel):
     """Schema for updating a meeting (e.g., when call ends)."""
     end_time_utc: str
+
+class PaginatedMeetingsResponse(BaseModel):
+    """Paginated meetings list for History tab."""
+    items: List[MeetingResponse]
+    total: int
+    page: int
+    limit: int
+
+class MeetingFilterOptionsResponse(BaseModel):
+    """Distinct filter values for History tab dropdowns."""
+    agent_types: List[str] = []
+    from_numbers: List[str] = []
+    to_numbers: List[str] = []
 
 # Campaign Models
 class CampaignCreate(BaseModel):
@@ -221,6 +242,10 @@ class PhoneNumberResponse(BaseModel):
     org_id: str
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    last_link_action: Optional[str] = None  # "attached" | "detached"
+    last_link_agent_type: Optional[str] = None
+    last_link_by_email: Optional[str] = None
+    last_link_at: Optional[str] = None
 
 # Vobiz Models
 class VobizApplicationCreate(BaseModel):
@@ -241,6 +266,27 @@ class VobizNumberLink(BaseModel):
 
 class VobizNumberUnlink(BaseModel):
     """Schema for unlinking phone number from Vobiz application."""
+    phone_number: str
+
+# Plivo Models
+class PlivoApplicationCreate(BaseModel):
+    """Schema for creating Plivo application."""
+    agent_type: str
+    answer_url: str
+
+class PlivoApplicationResponse(BaseModel):
+    """Schema for Plivo application response."""
+    status: str
+    message: str
+    app_id: Optional[str] = None
+
+class PlivoNumberLink(BaseModel):
+    """Schema for linking phone number to Plivo application."""
+    phone_number: str
+    application_id: str
+
+class PlivoNumberUnlink(BaseModel):
+    """Schema for unlinking phone number from Plivo application."""
     phone_number: str
 
 # Generic Response Models

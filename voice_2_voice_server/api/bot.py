@@ -4,12 +4,9 @@ import os
 import json
 import time
 import traceback
-from datetime import datetime
 
 from loguru import logger
 from dotenv import load_dotenv
-
-
 
 from pipecat.frames.frames import TTSSpeakFrame, TTSStartedFrame
 from pipecat.pipeline.pipeline import Pipeline
@@ -26,6 +23,7 @@ from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketParams,
     FastAPIWebsocketTransport,
 )
+from pipecat.runner.utils import parse_telephony_websocket
 from storage.minio_client import MinIOStorage
 from serializer.vobiz_serializer import VobizFrameSerializer
 from serializer.ubona_serializer import UbonaFrameSerializer
@@ -37,6 +35,7 @@ from .services import (
 )
 # Import the new filter
 from services.audio.greeting_interruption_filter import GreetingInterruptionFilter
+from services.audio.marathi_idle_prompt_filter import MarathiIdlePromptFilter
 from services.vllm_qwen import ensure_no_think_suffix
 from .call_recording_utils import submit_call_recording
 
@@ -138,6 +137,7 @@ async def run_bot(
     handle_sigint: bool = False,
     vad_analyzer: Any = None,
     vistaar_session_id: Optional[str] = None,
+    sample_rate: Optional[int] = None,
 ) -> None:
     """Run the voice bot pipeline with the given configuration.
     
@@ -149,7 +149,7 @@ async def run_bot(
         handle_sigint: Whether to handle SIGINT for graceful shutdown
     """
     start_time = time.monotonic()
-    sample_rate = _get_sample_rate()
+    sample_rate = sample_rate or _get_sample_rate()
     
     logger.debug(f"Agent config: {json.dumps(agent_config, indent=2, default=str)}")
     
@@ -165,7 +165,7 @@ async def run_bot(
             llm_config["knowledge_document_ids"] = list(
                 agent_config.get("knowledge_document_ids") or []
             )
-            llm_config["knowledge_top_k"] = int(agent_config.get("knowledge_top_k", 3) or 3)
+            llm_config["knowledge_top_k"] = 10
         
         language = agent_config.get("language")
         if language:
@@ -202,8 +202,19 @@ async def run_bot(
             context_aggregator = llm.create_context_aggregator(context)
         
         greeting_filter = GreetingInterruptionFilter()
-        
-        pipeline = Pipeline([
+        language_normalized = str(language or "").strip().lower()
+        marathi_idle_prompt_enabled = (
+            language_normalized == "marathi"
+            or language_normalized == "mr"
+            or language_normalized.startswith("mr-")
+        )
+        marathi_idle_prompt_filter = (
+            MarathiIdlePromptFilter(timeout_secs=10.0) if marathi_idle_prompt_enabled else None
+        )
+        if marathi_idle_prompt_enabled:
+            logger.info("Marathi idle prompt enabled (10s silence after bot speech)")
+
+        pipeline_processors = [
             transport.input(),
             greeting_filter,
             stt,
@@ -211,11 +222,17 @@ async def run_bot(
             context_aggregator.user(),
             llm,
             tts,
+        ]
+        if marathi_idle_prompt_filter:
+            pipeline_processors.append(marathi_idle_prompt_filter)
+        pipeline_processors.extend([
             transcript.assistant(),
             audiobuffer,
             transport.output(),
             context_aggregator.assistant(),
         ])
+
+        pipeline = Pipeline(pipeline_processors)
         
         task = PipelineTask(
             pipeline,
@@ -255,14 +272,16 @@ async def run_bot(
 
 async def bot(
     websocket_client,
-    stream_sid: str,
-    call_sid: str,
+    stream_sid: Optional[str],
+    call_sid: Optional[str],
     agent_type: str,
     agent_config: dict,
+    provider: str = "vobiz",
     transcript_callback: Optional[Callable[[str, str, Optional[str]], Awaitable[None]]] = None,
-) -> None:
+    sample_rate: Optional[int] = None,
+) -> str:
     """Main bot entry point - sets up transport and runs the pipeline."""
-    sample_rate = _get_sample_rate()
+    sample_rate = sample_rate or _get_sample_rate()
     session_timeout = agent_config.get("session_timeout_minutes", 10) * 60
 
     import time
@@ -276,26 +295,46 @@ async def bot(
     
     # Track call start time
     call_start_time = time.monotonic()
-    start_time_utc = datetime.utcnow().isoformat()
     
     # Initialize MinIO storage
     storage = MinIOStorage.from_env()
-    
-    serializer = VobizFrameSerializer(
-        stream_sid=stream_sid,
-        call_sid=call_sid,
-        params=VobizFrameSerializer.InputParams(
-            vobiz_sample_rate=sample_rate,
-            sample_rate=sample_rate
+
+    normalized_provider = (provider or "vobiz").strip().lower()
+    if normalized_provider == "plivo":
+        # Pipecat: parse_telephony_websocket reads Plivo start messages (streamId, callId)
+        await websocket_client.accept()
+        _, telephony_call_data = await parse_telephony_websocket(websocket_client)
+        stream_sid = stream_sid or telephony_call_data.get("stream_id") or "unknown"
+        call_sid = call_sid or telephony_call_data.get("call_id") or "unknown"
+        # Plivo media stream matches Vobiz (L16 @ 16k); native PlivoFrameSerializer is mulaw-only
+        serializer = VobizFrameSerializer(
+            stream_sid=stream_sid,
+            call_sid=call_sid,
+            params=VobizFrameSerializer.InputParams(
+                vobiz_sample_rate=sample_rate,
+                sample_rate=sample_rate,
+                auto_hang_up=False,
+            ),
         )
-    )
+    else:
+        stream_sid = stream_sid or "unknown"
+        call_sid = call_sid or "unknown"
+        serializer = VobizFrameSerializer(
+            stream_sid=stream_sid,
+            call_sid=call_sid,
+            params=VobizFrameSerializer.InputParams(
+                vobiz_sample_rate=sample_rate,
+                sample_rate=sample_rate
+            )
+        )
+    
     
     vad_analyzer = SileroVADAnalyzer(
         sample_rate=sample_rate,
         params=VADParams(
-            stop_secs=0.35,
-            min_volume=0.3,
-            confidence=0.4,
+            stop_secs=0.4,
+            min_volume=0.4,
+            confidence=0.3,
             start_secs=0.1,
         )
     )
@@ -364,7 +403,16 @@ async def bot(
                     logger.debug(f"Transcript callback failed: {callback_error}")
     
     try:
-        await run_bot(transport, agent_config, audiobuffer, transcript, handle_sigint=False, vad_analyzer=vad_analyzer, vistaar_session_id=call_sid)
+        await run_bot(
+            transport,
+            agent_config,
+            audiobuffer,
+            transcript,
+            handle_sigint=False,
+            vad_analyzer=vad_analyzer,
+            vistaar_session_id=call_sid,
+            sample_rate=sample_rate,
+        )
     finally:
         logger.info(f"Saving call data for {call_sid}...")
         if call_data["audio_chunks"] and call_data["audio_sample_rate"] and call_data["audio_num_channels"]:
@@ -398,6 +446,7 @@ async def bot(
             storage=storage,
             call_start_time=call_start_time
         )
+    return call_sid
 
 async def ubona_bot(
     websocket_client,

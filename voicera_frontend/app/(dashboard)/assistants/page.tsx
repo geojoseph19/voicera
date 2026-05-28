@@ -2,7 +2,10 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { getCurrentUser, getAgents, createAgent, createVobizApplication, deleteVobizApplication, deleteAgent, unlinkVobizNumber, fetchApiRoute, getIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type KnowledgeDocument } from "@/lib/api"
+import { useQueryClient } from "@tanstack/react-query"
+import { formatDistanceToNow } from "date-fns"
+import { getCurrentUser, createAgent, createVobizApplication, createPlivoApplication, deleteVobizApplication, deletePlivoApplication, deleteAgent, unlinkVobizNumber, unlinkPlivoNumber, fetchApiRoute, getIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type KnowledgeDocument } from "@/lib/api"
+import { agentsQueryKey, useAgentsQuery } from "@/lib/queries/agents"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +40,7 @@ import {
   ChevronLeft,
   Plus,
   Search,
+  RefreshCw,
   Phone,
   BarChart3,
   FileText,
@@ -184,6 +188,7 @@ interface AgentConfig {
   systemPrompt: string
   llmProvider: string
   llmModel: string
+  kenpathEnvironment: "prod" | "dev"
   knowledgeEnabled: boolean
   knowledgeDocumentIds: string[]
   knowledgeTopK: number
@@ -203,6 +208,9 @@ interface AgentConfig {
   stability: number
   telephonyProvider: string
 }
+type AgentWithTelephony = Agent & {
+  plivo_app_id?: string
+}
 
 const defaultConfig: AgentConfig = {
   id: "",
@@ -211,6 +219,7 @@ const defaultConfig: AgentConfig = {
   systemPrompt: "You are a helpful agent. You will help the customer with their queries and doubts. You will never speak more than 2 sentences. Keep your responses concise",
   llmProvider: "openai",
   llmModel: "gpt-4o",
+  kenpathEnvironment: "prod",
   knowledgeEnabled: false,
   knowledgeDocumentIds: [],
   knowledgeTopK: 3,
@@ -228,7 +237,7 @@ const defaultConfig: AgentConfig = {
   speedRate: 1,
   similarityBoost: 75,
   stability: 50,
-  telephonyProvider: "Vobiz",
+  telephonyProvider: "Plivo",
 }
 
 // Wizard steps configuration
@@ -242,13 +251,13 @@ const wizardSteps = [
 
 export default function AssistantsPage() {
   const router = useRouter()
-  const [agents, setAgents] = useState<Agent[]>([])
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
+  const [agentSortOrder, setAgentSortOrder] = useState<"newest" | "oldest">("newest")
   const [config, setConfig] = useState<AgentConfig>(defaultConfig)
   const [view, setView] = useState<"list" | "create">("list")
   const [createStep, setCreateStep] = useState(1)
   const [user, setUser] = useState<User | null>(null)
-  const [isLoadingAgents, setIsLoadingAgents] = useState(true)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
   const [isTestCallSheetOpen, setIsTestCallSheetOpen] = useState(false)
   const [isTestBrowserDialogOpen, setIsTestBrowserDialogOpen] = useState(false)
@@ -258,19 +267,23 @@ export default function AssistantsPage() {
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocument[]>([])
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false)
 
-  // Fetch user data, agents, and integrations on mount
+  const {
+    data: agents = [],
+    isPending: isLoadingAgents,
+    isError: isAgentsError,
+    error: agentsError,
+    refetch: refetchAgents,
+    isFetching: isFetchingAgents,
+    dataUpdatedAt,
+  } = useAgentsQuery(user?.org_id)
+
+  // Fetch user, integrations, and knowledge docs on mount
   useEffect(() => {
     async function fetchData() {
       try {
         const userData = await getCurrentUser()
         setUser(userData)
-        
-        // Fetch agents for this org
-        if (userData.org_id) {
-          const agentsData = await getAgents(userData.org_id)
-          setAgents(agentsData)
-        }
-        
+
         // Fetch integrations to know which providers have API keys
         try {
           const integrations = await getIntegrations()
@@ -296,34 +309,16 @@ export default function AssistantsPage() {
       } catch (error) {
         console.error("Failed to fetch data:", error)
         router.push("/")
-      } finally {
-        setIsLoadingAgents(false)
       }
     }
     fetchData()
   }, [router])
 
-  // Refresh agents when window regains focus (user navigates back from detail page)
   useEffect(() => {
-    const handleFocus = async () => {
-      if (view === "list") {
-        try {
-          // Re-fetch current user to ensure we have the correct org_id matching the token
-          const currentUser = await getCurrentUser()
-          if (currentUser?.org_id) {
-            setUser(currentUser)
-            const agentsData = await getAgents(currentUser.org_id)
-            setAgents(agentsData)
-          }
-        } catch (error) {
-          console.error("Failed to refresh agents:", error)
-        }
-      }
+    if (isAgentsError) {
+      console.error("Failed to fetch agents:", agentsError)
     }
-
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [view])
+  }, [isAgentsError, agentsError])
 
   // Filter agents based on search
   const filteredAgents = agents.filter(
@@ -335,17 +330,31 @@ export default function AssistantsPage() {
     }
   )
 
+  const sortedAgents = useMemo(() => {
+    const copy = [...filteredAgents]
+    /** Prefer created_at; fall back to updated_at for legacy rows without created_at. */
+    const sortTime = (a: Agent) =>
+      new Date(a.created_at || a.updated_at || 0).getTime()
+    copy.sort((a, b) => {
+      const diff =
+        agentSortOrder === "newest"
+          ? sortTime(b) - sortTime(a)
+          : sortTime(a) - sortTime(b)
+      if (diff !== 0) return diff
+      return a.agent_type.localeCompare(b.agent_type)
+    })
+    return copy
+  }, [filteredAgents, agentSortOrder])
+
   const viewConfig = (agent: Agent) => {
-    // Use agent.id or agent._id (MongoDB) if available, otherwise construct a unique identifier
-    let agentId = agent.id || agent._id
-    if (!agentId) {
-      // Construct ID only if we have the necessary fields
-      if (agent.org_id && agent.agent_type) {
-        const timestamp = agent.created_at || Date.now().toString()
-        agentId = `${agent.org_id}-${agent.agent_type}-${timestamp}`
-      }
-    }
-    if (!agentId || agentId === 'undefined' || agentId.includes('undefined')) {
+    // agent_type is the stable backend lookup key (unique per org). Composite IDs built from
+    // created_at ISO strings break hyphen-based parsing in the detail API route.
+    const agentId =
+      agent.agent_type ||
+      agent.agent_id ||
+      agent.id ||
+      agent._id
+    if (!agentId || agentId === "undefined" || agentId.includes("undefined")) {
       console.error("Agent ID is missing or invalid:", agent)
       return
     }
@@ -529,7 +538,7 @@ export default function AssistantsPage() {
 
   // Handle create new agent
   const handleCreateNew = () => {
-    setConfig({ ...defaultConfig, id: "new", telephonyProvider: "Vobiz" })
+    setConfig({ ...defaultConfig, id: "new", telephonyProvider: "Plivo" })
     setCreateStep(1)
     setView("create")
   }
@@ -538,7 +547,7 @@ export default function AssistantsPage() {
   const handleBackToList = () => {
     setView("list")
     setCreateStep(1)
-    setConfig({ ...defaultConfig, telephonyProvider: "Vobiz" })
+    setConfig({ ...defaultConfig, telephonyProvider: "Plivo" })
   }
 
 
@@ -573,6 +582,8 @@ export default function AssistantsPage() {
           // If provider is Vobiz, unlink from Vobiz application first
           if (agent.telephony_provider === "Vobiz") {
             await unlinkVobizNumber(agent.phone_number)
+          } else if (agent.telephony_provider === "Plivo") {
+            await unlinkPlivoNumber(agent.phone_number)
           }
           
           // Detach phone number from agent in database
@@ -602,17 +613,25 @@ export default function AssistantsPage() {
           // Continue with agent deletion even if Vobiz deletion fails
         }
       }
+      const telephonyAgent = agent as AgentWithTelephony
+      if (agent.telephony_provider === "Plivo" && telephonyAgent.plivo_app_id) {
+        try {
+          await deletePlivoApplication(telephonyAgent.plivo_app_id)
+        } catch (error) {
+          console.error("Failed to delete Plivo application:", error)
+        }
+      }
 
       // Step 3: Delete the agent
       const agentId = agent.id || agent._id || agent.agent_type
       if (!agentId) {
         throw new Error("Agent ID is missing")
       }
-      await deleteAgent(agentId)
+      await deleteAgent(agentId, { agentType: agent.agent_type })
 
-      // Refresh the agents list after deletion
-      const agentsData = await getAgents(user.org_id)
-      setAgents(agentsData)
+      await queryClient.invalidateQueries({
+        queryKey: agentsQueryKey(user.org_id),
+      })
       
       // Show success toast
       setShowDeleteSuccessToast(true)
@@ -672,6 +691,9 @@ export default function AssistantsPage() {
       }
       if (key === "llmProvider") {
         updated.llmModel = ""
+        if ((value as string) === "kenpath") {
+          updated.kenpathEnvironment = "prod"
+        }
         if ((value as string) !== "openai") {
           updated.knowledgeEnabled = false
           updated.knowledgeDocumentIds = []
@@ -716,11 +738,13 @@ export default function AssistantsPage() {
       const languageName = config.language // Already the name, no lookup needed
 
       // Build LLM model object with official provider name
-      const llmModel: { name: string; model?: string } = {
+      const llmModel: { name: string; model?: string; vistaar_environment?: "prod" | "dev" } = {
         name: getProviderOfficialName(config.llmProvider),
       }
       if (config.llmProvider !== "kenpath") {
         llmModel.model = config.llmModel
+      } else {
+        llmModel.vistaar_environment = config.kenpathEnvironment
       }
 
       // Build STT model object WITHOUT language inside, using official provider name
@@ -733,16 +757,21 @@ export default function AssistantsPage() {
       }
 
       // Build TTS model object WITHOUT language, using official provider name
-      const ttsModel: any = {
+      const usesArgsVoiceProvider =
+        config.ttsProvider === "cartesia" ||
+        config.ttsProvider === "gcp" ||
+        config.ttsProvider === "elevenlabs"
+
+      const ttsModel: Record<string, unknown> = {
         name: getProviderOfficialName(config.ttsProvider),
-        ...((config.ttsProvider === "cartesia" || config.ttsProvider === "gcp") && {
+        ...(usesArgsVoiceProvider && {
           args: {
             ...(config.ttsModel && { model: config.ttsModel }),
             ...(config.ttsVoice && { voice_id: config.ttsVoice }),
           },
         }),
-        ...(config.ttsProvider !== "cartesia" && config.ttsProvider !== "gcp" && config.ttsModel && { model: config.ttsModel }),
-        speaker: (config.ttsProvider === "cartesia" || config.ttsProvider === "gcp") ? "" : (config.ttsVoice || ""),
+        ...(!usesArgsVoiceProvider && config.ttsModel && { model: config.ttsModel }),
+        speaker: usesArgsVoiceProvider ? "" : (config.ttsVoice || ""),
       }
       if ((config.ttsProvider === "ai4bharat" || config.ttsProvider === "bhashini") && config.ttsDescription) {
         ttsModel.description = config.ttsDescription
@@ -763,6 +792,8 @@ export default function AssistantsPage() {
       // If Vobiz provider, create Vobiz application first
       let vobizAppId: string | undefined
       let vobizAnswerUrl: string | undefined
+      let plivoAppId: string | undefined
+      let plivoAnswerUrl: string | undefined
       
       if (config.telephonyProvider === "Vobiz") {
         vobizAnswerUrl = `${process.env.NEXT_PUBLIC_JOHNAIC_SERVER_URL}/answer?agent_id=${agentId}`
@@ -775,6 +806,15 @@ export default function AssistantsPage() {
           vobizAppId = vobizAppResponse.app_id
         } else {
           throw new Error(vobizAppResponse.message || "Failed to create Vobiz application")
+        }
+      }
+      if (config.telephonyProvider === "Plivo") {
+        plivoAnswerUrl = `${process.env.NEXT_PUBLIC_JOHNAIC_SERVER_URL}/plivo/answer?agent_id=${agentId}`
+        const plivoAppResponse = await createPlivoApplication(config.name, plivoAnswerUrl)
+        if (plivoAppResponse.status === "success" && plivoAppResponse.app_id) {
+          plivoAppId = plivoAppResponse.app_id
+        } else {
+          throw new Error(plivoAppResponse.message || "Failed to create Plivo application")
         }
       }
 
@@ -798,24 +838,23 @@ export default function AssistantsPage() {
           stt_model: sttModel,
           tts_model: ttsModel,
         },
-        telephony_provider: config.telephonyProvider as any,
+        telephony_provider: config.telephonyProvider,
         ...(config.telephonyProvider === "Vobiz" && {
           vobiz_app_id: vobizAppId,
           vobiz_answer_url: vobizAnswerUrl,
         }),
+        ...(config.telephonyProvider === "Plivo" && {
+          plivo_app_id: plivoAppId,
+          plivo_answer_url: plivoAnswerUrl,
+        }),
       }
 
-      // Create agent via API
-      const newAgent = await createAgent(agentData)
+      await createAgent(agentData)
 
-      
-      // Refresh agents list to get all agents with proper data
       if (user.org_id) {
-        const agentsData = await getAgents(user.org_id)
-        setAgents(agentsData)
-      } else {
-        // Fallback: add new agent to the list
-        setAgents([...agents, newAgent])
+        await queryClient.invalidateQueries({
+          queryKey: agentsQueryKey(user.org_id),
+        })
       }
       
       // Reset and go back to list
@@ -905,8 +944,41 @@ export default function AssistantsPage() {
               <h1 className="text-3xl font-semibold text-slate-900 mb-1">Hi {user?.name}</h1>
               <p className="text-slate-500">Let&apos;s get your agents inline.</p>
             </div>
-            <div className="flex items-center gap-3">
-              
+            <div className="flex flex-wrap items-center gap-3">
+              {dataUpdatedAt > 0 && (
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  Last updated{" "}
+                  {formatDistanceToNow(dataUpdatedAt, { addSuffix: true })}
+                </span>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0 rounded-lg border-slate-200"
+                aria-label="Refresh agents"
+                disabled={isFetchingAgents || !user?.org_id}
+                onClick={() => refetchAgents()}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isFetchingAgents ? "animate-spin" : ""}`}
+                />
+              </Button>
+              <Select
+                value={agentSortOrder}
+                onValueChange={(v) => setAgentSortOrder(v as "newest" | "oldest")}
+              >
+                <SelectTrigger
+                  aria-label="Sort agents by creation date"
+                  className="h-10 w-[168px] rounded-lg border-slate-200 bg-white text-sm focus:ring-1 focus:ring-slate-200"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="oldest">Oldest first</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
@@ -919,6 +991,19 @@ export default function AssistantsPage() {
               </div>
             </div>
           </div>
+
+          {isAgentsError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Failed to load agents.{" "}
+              <button
+                type="button"
+                className="font-medium underline"
+                onClick={() => refetchAgents()}
+              >
+                Try again
+              </button>
+            </div>
+          )}
 
           {/* Assistant Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -941,7 +1026,7 @@ export default function AssistantsPage() {
             )}
 
             {/* Existing Assistant Cards */}
-            {!isLoadingAgents && filteredAgents.map((agent) => (
+            {!isLoadingAgents && sortedAgents.map((agent) => (
               <AgentCard
                 key={String(agent.id || agent.org_id + agent.agent_type + agent.created_at)}
                 agent={agent}
@@ -1165,20 +1250,45 @@ export default function AssistantsPage() {
                         </SelectContent>
                       </Select>
 
-                      <Select value={config.llmModel} onValueChange={(v) => updateConfig("llmModel", v)} disabled={!config.llmProvider || availableLLMModels.length === 0}>
-                        <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
-                          <SelectValue placeholder="Select model" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-lg max-h-[280px]">
-                          {availableLLMModels.map((model) => (
-                            <SelectItem key={model} value={model} className="py-2.5 font-mono text-sm">
-                              {model}
+                      {config.llmProvider === "kenpath" ? (
+                        <Select
+                          value={config.kenpathEnvironment}
+                          onValueChange={(v) => updateConfig("kenpathEnvironment", v as "prod" | "dev")}
+                        >
+                          <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
+                            <SelectValue placeholder="Select API environment" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg">
+                            <SelectItem value="prod" className="py-2.5">
+                              Production
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            <SelectItem value="dev" className="py-2.5">
+                              Development
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Select value={config.llmModel} onValueChange={(v) => updateConfig("llmModel", v)} disabled={!config.llmProvider || availableLLMModels.length === 0}>
+                          <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg max-h-[280px]">
+                            {availableLLMModels.map((model) => (
+                              <SelectItem key={model} value={model} className="py-2.5 font-mono text-sm">
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </div>
+
+                  {config.llmProvider === "kenpath" && (
+                    <p className="text-sm text-blue-600">
+                      Vistaar API environment for Hindi/Marathi streaming. Voice Bhili uses a separate endpoint.
+                    </p>
+                  )}
 
                   {config.llmProvider !== "kenpath" && (
                     <div className="grid grid-cols-2 gap-6 pt-4">
@@ -1538,7 +1648,7 @@ export default function AssistantsPage() {
                         <div className="space-y-2">
                           <label className="text-sm font-semibold text-slate-700">Voice</label>
                           <div className="flex items-center gap-2">
-                            {(config.ttsProvider === "gcp" || config.ttsProvider === "cartesia") ? (
+                            {(config.ttsProvider === "gcp" || config.ttsProvider === "cartesia" || config.ttsProvider === "elevenlabs") ? (
                               <Input
                                 value={config.ttsVoice}
                                 onChange={(e) => updateConfig("ttsVoice", e.target.value)}
@@ -1731,7 +1841,7 @@ export default function AssistantsPage() {
                         <SelectItem value="Vobiz" className="py-3">
                           <span className="font-medium">Vobiz</span>
                         </SelectItem>
-                        <SelectItem disabled value="Plivo" className="py-3">
+                        <SelectItem value="Plivo" className="py-3">
                           <span className="font-medium">Plivo</span>
                         </SelectItem>
                       </SelectContent>
@@ -1784,7 +1894,10 @@ export default function AssistantsPage() {
                     <div>
                       <p className="text-sm font-bold text-slate-900 mb-2">LLM Model</p>
                       <p className="text-sm font-medium text-slate-700">
-                        {getProviderOfficialName(config.llmProvider) || "—"} / {config.llmModel || "—"}
+                        {getProviderOfficialName(config.llmProvider) || "—"}
+                        {config.llmProvider === "kenpath"
+                          ? ` / ${config.kenpathEnvironment === "dev" ? "Development" : "Production"}`
+                          : ` / ${config.llmModel || "—"}`}
                       </p>
                       {config.llmProvider !== "kenpath" && (
                         <p className="text-sm text-slate-500 mt-1">

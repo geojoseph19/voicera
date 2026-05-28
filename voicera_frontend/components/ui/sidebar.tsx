@@ -185,12 +185,16 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          "bg-sidebar text-sidebar-foreground flex h-svh w-(--sidebar-width) flex-col",
+          // Outer column stretches with the main content so the sidebar background has no white gap.
+          "relative flex w-(--sidebar-width) shrink-0 self-stretch min-h-svh bg-sidebar text-sidebar-foreground",
           className
         )}
         {...props}
       >
-        {children}
+        {/* Nav/footer stay within one viewport; mt-auto only distributes inside this height. */}
+        <div className="sticky top-0 z-10 flex h-svh min-h-0 w-full flex-col">
+          {children}
+        </div>
       </div>
     )
   }

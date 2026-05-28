@@ -40,12 +40,14 @@ def create_agent(agent_data: AgentConfigCreate) -> Dict[str, Any]:
         if existing_agent_by_id:
             return {"status": "fail", "message": "Agent ID already exists for this organization"}
         
+        now_iso = datetime.now().isoformat()
         agent_doc = {
             "agent_type": agent_data.agent_type,
             "agent_id": agent_data.agent_id,
             "agent_config": agent_data.agent_config,
             "org_id": agent_data.org_id,
-            "updated_at": datetime.now().isoformat()
+            "created_at": now_iso,
+            "updated_at": now_iso,
         }
         
         if agent_data.agent_category:
@@ -66,6 +68,10 @@ def create_agent(agent_data: AgentConfigCreate) -> Dict[str, Any]:
             agent_doc["vobiz_app_id"] = agent_data.vobiz_app_id
         if agent_data.vobiz_answer_url:
             agent_doc["vobiz_answer_url"] = agent_data.vobiz_answer_url
+        if agent_data.plivo_app_id:
+            agent_doc["plivo_app_id"] = agent_data.plivo_app_id
+        if agent_data.plivo_answer_url:
+            agent_doc["plivo_answer_url"] = agent_data.plivo_answer_url
         
         agent_table.insert_one(agent_doc)
         logger.info(f"Agent created successfully: {agent_data.agent_type}")
@@ -92,6 +98,19 @@ def fetch_agent_config(agent_type: str) -> Optional[Dict[str, Any]]:
         return agent
     except Exception as e:
         logger.error(f"Error fetching agent config: {str(e)}")
+        return None
+
+def fetch_agent_config_for_org(agent_type: str, org_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch agent config for a given agent type scoped to an organization.
+    """
+    try:
+        db = get_database()
+        agent_table = db["AgentConfig"]
+        agent = agent_table.find_one({"agent_type": agent_type, "org_id": org_id})
+        return agent
+    except Exception as e:
+        logger.error(f"Error fetching org-scoped agent config: {str(e)}")
         return None
 
 def fetch_agent_config_by_id(agent_id: str) -> Optional[Dict[str, Any]]:
@@ -126,13 +145,17 @@ def fetch_agents_of_org(org_id: str) -> List[Dict[str, Any]]:
     try:
         db = get_database()
         agent_table = db["AgentConfig"]
-        agents = list(agent_table.find({"org_id": org_id}))
+        agents = list(
+            agent_table.find({"org_id": org_id}).sort(
+                [("created_at", -1), ("updated_at", -1)]
+            )
+        )
         return agents
     except Exception as e:
         logger.error(f"Error fetching agents: {str(e)}")
         return []
 
-def update_agent_config(agent_type: str, agent_data: AgentConfigUpdate) -> Dict[str, Any]:
+def update_agent_config(agent_type: str, agent_data: AgentConfigUpdate, org_id: str) -> Dict[str, Any]:
     """
     Update agent config.
     
@@ -147,9 +170,23 @@ def update_agent_config(agent_type: str, agent_data: AgentConfigUpdate) -> Dict[
         db = get_database()
         agent_table = db["AgentConfig"]
         
+        existing_agent = agent_table.find_one({"agent_type": agent_type, "org_id": org_id})
+        if not existing_agent:
+            return {"status": "fail", "message": "Agent type not found"}
+
+        target_agent_type = (agent_data.agent_type or agent_type).strip()
+        if not target_agent_type:
+            return {"status": "fail", "message": "Agent type cannot be empty"}
+
+        if target_agent_type != agent_type:
+            duplicate = agent_table.find_one({"agent_type": target_agent_type, "org_id": org_id})
+            if duplicate:
+                return {"status": "fail", "message": "Agent type already exists for this organization"}
+
         update_doc = {
             "agent_config": agent_data.agent_config,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": datetime.now().isoformat(),
+            "agent_type": target_agent_type,
         }
         
         if agent_data.agent_category:
@@ -169,23 +206,52 @@ def update_agent_config(agent_type: str, agent_data: AgentConfigUpdate) -> Dict[
             update_doc["vobiz_app_id"] = agent_data.vobiz_app_id
         if agent_data.vobiz_answer_url:
             update_doc["vobiz_answer_url"] = agent_data.vobiz_answer_url
-        
+        if agent_data.plivo_app_id:
+            update_doc["plivo_app_id"] = agent_data.plivo_app_id
+        if agent_data.plivo_answer_url:
+            update_doc["plivo_answer_url"] = agent_data.plivo_answer_url
+
+        if existing_agent.get("created_at") is None:
+            update_doc["created_at"] = (
+                existing_agent.get("updated_at") or datetime.now().isoformat()
+            )
+
         result = agent_table.update_one(
-            {"agent_type": agent_type},
+            {"agent_type": agent_type, "org_id": org_id},
             {"$set": update_doc}
         )
         
         if result.matched_count == 0:
             return {"status": "fail", "message": "Agent type not found"}
         
-        logger.info(f"Agent updated successfully: {agent_type}")
-        return {"status": "success", "message": "Agent config updated successfully"}
+        if target_agent_type != agent_type:
+            collection_names = [
+                "PhoneNumber",
+                "Meetings",
+                "CallLogs",
+                "CallRecordings",
+                "Campaigns",
+                "Batches",
+                "BatchContacts",
+            ]
+            for collection_name in collection_names:
+                db[collection_name].update_many(
+                    {"org_id": org_id, "agent_type": agent_type},
+                    {"$set": {"agent_type": target_agent_type}},
+                )
+
+        logger.info(f"Agent updated successfully: {agent_type} -> {target_agent_type}")
+        return {
+            "status": "success",
+            "message": "Agent config updated successfully",
+            "agent_type": target_agent_type,
+        }
         
     except Exception as e:
         logger.error(f"Error updating agent: {str(e)}")
         return {"status": "fail", "message": f"Error updating agent: {str(e)}"}
 
-def delete_agent(agent_type: str) -> Dict[str, Any]:
+def delete_agent(agent_type: str, org_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Delete an agent by agent_type.
     
@@ -199,7 +265,11 @@ def delete_agent(agent_type: str) -> Dict[str, Any]:
         db = get_database()
         agent_table = db["AgentConfig"]
         
-        result = agent_table.delete_one({"agent_type": agent_type})
+        query: Dict[str, Any] = {"agent_type": agent_type}
+        if org_id:
+            query["org_id"] = org_id
+
+        result = agent_table.delete_one(query)
         
         if result.deleted_count == 0:
             return {"status": "fail", "message": "Agent type not found"}
@@ -229,4 +299,3 @@ def fetch_agent_by_phone_number(phone_number: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error fetching agent by phone number: {str(e)}")
         return None
-

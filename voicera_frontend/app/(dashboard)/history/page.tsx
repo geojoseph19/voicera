@@ -21,7 +21,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { getMeetings, getMeetingDetails, type Meeting, type MeetingDetails } from "@/lib/api"
+import { getMeetingsPage, getMeetingDetails, type Meeting, type MeetingDetails } from "@/lib/api"
+import { buildMeetingsParams, MEETINGS_PAGE_SIZE } from "@/lib/meetings-params"
+import {
+  useMeetingsQuery,
+  useMeetingFilterOptionsQuery,
+} from "@/lib/queries/meetings"
+import { maskPhoneLastDigits } from "@/lib/mask-phone"
 import { MeetingDetailSheet } from "@/components/history/meeting-detail-sheet"
 import {
   Calendar as CalendarIcon,
@@ -45,10 +51,7 @@ function HistoryPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(100)
 
   // Sheet state
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null)
@@ -77,11 +80,6 @@ function HistoryPageContent() {
   const [fromNumberFilterOpen, setFromNumberFilterOpen] = useState(false)
   const [toNumberFilterOpen, setToNumberFilterOpen] = useState(false)
 
-  // Agent types and phone numbers for filters (extracted from meetings)
-  const [uniqueAgentTypes, setUniqueAgentTypes] = useState<string[]>([])
-  const [uniqueFromNumbers, setUniqueFromNumbers] = useState<string[]>([])
-  const [uniqueToNumbers, setUniqueToNumbers] = useState<string[]>([])
-
   // Client-side mount state to prevent hydration mismatch
   const [mounted, setMounted] = useState(false)
 
@@ -98,174 +96,60 @@ function HistoryPageContent() {
     setMounted(true)
   }, [])
 
-  // Fetch meetings and extract filter options
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const meetingsData = await getMeetings()
-        setMeetings(meetingsData)
-        
-        // Extract unique agent types, phone numbers from meetings
-        const agentTypes = new Set<string>()
-        const fromNumbers = new Set<string>()
-        const toNumbers = new Set<string>()
-        
-        meetingsData.forEach(meeting => {
-          if (meeting.agent_type) agentTypes.add(meeting.agent_type)
-          if (meeting.from_number) fromNumbers.add(meeting.from_number)
-          if (meeting.to_number) toNumbers.add(meeting.to_number)
-        })
-        
-        setUniqueAgentTypes(Array.from(agentTypes).sort())
-        setUniqueFromNumbers(Array.from(fromNumbers).sort())
-        setUniqueToNumbers(Array.from(toNumbers).sort())
-      } catch (error) {
-        console.error("Failed to fetch meetings:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  const meetingsParams = useMemo(
+    () =>
+      buildMeetingsParams(
+        currentPage,
+        activeFilters,
+        dateRange,
+        dateSortOrder,
+        durationSortOrder
+      ),
+    [currentPage, activeFilters, dateRange, dateSortOrder, durationSortOrder]
+  )
 
-    fetchData()
-  }, [])
+  const {
+    data: meetingsPage,
+    isPending,
+    isFetching,
+    isError,
+  } = useMeetingsQuery(meetingsParams)
 
-  // Filter logic with date range and sorting
-  const filteredMeetings = useMemo(() => {
-    let filtered = meetings
+  const { data: filterOptionsData } = useMeetingFilterOptionsQuery()
 
-    // Apply date range filter
-    if (dateRange.from || dateRange.to) {
-      filtered = filtered.filter(meeting => {
-        const meetingDate = meeting.start_time_utc || meeting.created_at
-        if (!meetingDate) return false
-        
-        try {
-          const date = new Date(meetingDate)
-          if (dateRange.from) {
-            const fromDate = new Date(dateRange.from)
-            fromDate.setHours(0, 0, 0, 0)
-            if (date < fromDate) return false
-          }
-          if (dateRange.to) {
-            const toDate = new Date(dateRange.to)
-            toDate.setHours(23, 59, 59, 999)
-            if (date > toDate) return false
-          }
-          return true
-        } catch {
-          return false
-        }
-      })
-    }
+  const paginatedMeetings = meetingsPage?.items ?? []
+  const totalMeetings = meetingsPage?.total ?? 0
+  const isLoading = isPending && !meetingsPage
 
-    // Apply other filters
-    if (activeFilters.length > 0) {
-      filtered = filtered.filter(meeting => {
-        return activeFilters.every(filter => {
-          switch (filter.field) {
-            case 'assistant_name':
-              return meeting.agent_type === filter.value
-            case 'call_status':
-              const status = meeting.call_busy ? "Busy" : meeting.end_time_utc ? "Completed" : "In Progress"
-              return status.toLowerCase() === filter.value.toLowerCase()
-            case 'call_type':
-              const isInbound = filter.value.toLowerCase() === 'inbound'
-              return meeting.inbound === isInbound
-            case 'from_number':
-              return meeting.from_number === filter.value
-            case 'to_number':
-              return meeting.to_number === filter.value
-            
-            default:
-              return true
-          }
-        })
-      })
-    }
+  const uniqueAgentTypes = filterOptionsData?.agent_types ?? []
+  const uniqueFromNumbers = filterOptionsData?.from_numbers ?? []
+  const uniqueToNumbers = filterOptionsData?.to_numbers ?? []
 
-    // Helper function to get duration in seconds
-    const getDurationInSeconds = (meeting: Meeting): number => {
-      if (meeting.call_busy) return -1 // Busy calls have no duration, put them at the end
-      if (meeting.duration !== null && meeting.duration !== undefined) {
-        return meeting.duration
-      }
-      if (meeting.start_time_utc && meeting.end_time_utc) {
-        try {
-          const start = new Date(meeting.start_time_utc).getTime()
-          const end = new Date(meeting.end_time_utc).getTime()
-          if (!isNaN(start) && !isNaN(end) && end > start) {
-            return (end - start) / 1000
-          }
-        } catch {
-          // If calculation fails, return -1
-        }
-      }
-      return -1 // No duration available
-    }
+  const exportParams = useMemo(
+    () =>
+      buildMeetingsParams(
+        1,
+        activeFilters,
+        dateRange,
+        dateSortOrder,
+        durationSortOrder,
+        { limit: totalMeetings > 0 ? totalMeetings : 10000, forExport: true }
+      ),
+    [activeFilters, dateRange, dateSortOrder, durationSortOrder, totalMeetings]
+  )
 
-    // Apply sorting by duration if duration sort is active
-    if (durationSortOrder) {
-      filtered = [...filtered].sort((a, b) => {
-        const durationA = getDurationInSeconds(a)
-        const durationB = getDurationInSeconds(b)
-        
-        // Put calls with no duration (-1) at the end
-        if (durationA === -1 && durationB === -1) return 0
-        if (durationA === -1) return 1
-        if (durationB === -1) return -1
-        
-        if (durationSortOrder === 'longest') {
-          // Longest to shortest (descending)
-          return durationB - durationA
-        } else {
-          // Shortest to longest (ascending)
-          return durationA - durationB
-        }
-      })
-    } else {
-      // Apply sorting by date (default when duration sort is not active)
-      filtered = [...filtered].sort((a, b) => {
-        const dateA = a.start_time_utc || a.created_at
-        const dateB = b.start_time_utc || b.created_at
-        
-        if (!dateA && !dateB) return 0
-        if (!dateA) return 1
-        if (!dateB) return -1
-        
-        try {
-          const timeA = new Date(dateA).getTime()
-          const timeB = new Date(dateB).getTime()
-          
-          if (dateSortOrder === 'latest') {
-            // Latest to oldest (descending)
-            return timeB - timeA
-          } else {
-            // Oldest to latest (ascending)
-            return timeA - timeB
-          }
-        } catch {
-          return 0
-        }
-      })
-    }
+  const fetchAllFilteredMeetings = async (): Promise<Meeting[]> => {
+    const result = await getMeetingsPage(exportParams)
+    return result.items
+  }
 
-    return filtered
-  }, [meetings, activeFilters, dateRange, dateSortOrder, durationSortOrder])
-
-  // Pagination
-  const paginatedMeetings = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage
-    const end = start + itemsPerPage
-    return filteredMeetings.slice(start, end)
-  }, [filteredMeetings, currentPage, itemsPerPage])
-
-  // Reset to page 1 when filters or date range change
+  // Reset to page 1 when filters, date range, or sort change
   useEffect(() => {
     setCurrentPage(1)
-  }, [activeFilters, dateRange])
+  }, [activeFilters, dateRange, dateSortOrder, durationSortOrder])
 
   // Filter helper functions
-  const filterOptions = [
+  const filterFieldOptions = [
     { id: 'assistant_name', label: 'Agent Name' },
     { id: 'call_status', label: 'Call Status' },
     { id: 'call_type', label: 'Call Type' },
@@ -274,7 +158,7 @@ function HistoryPageContent() {
   ]
 
   const getFilterLabel = (field: string): string => {
-    return filterOptions.find(f => f.id === field)?.label || field
+    return filterFieldOptions.find(f => f.id === field)?.label || field
   }
 
   const addFilter = (field: string, value: string) => {
@@ -391,8 +275,8 @@ function HistoryPageContent() {
   }
 
   // Export functions
-  const prepareExportData = () => {
-    return filteredMeetings.map(meeting => ({
+  const prepareExportData = (meetingsToExport: Meeting[]) => {
+    return meetingsToExport.map(meeting => ({
       "Agent Name": meeting.agent_type || "-",
       "To Number": meeting.to_number || "-",
       "From Number": meeting.from_number || "-",
@@ -407,14 +291,16 @@ function HistoryPageContent() {
     }))
   }
 
-  const exportToCSV = () => {
-    const data = prepareExportData()
-    if (data.length === 0) {
-      alert("No data to export")
-      return
-    }
+  const exportToCSV = async () => {
+    try {
+      const meetingsToExport = await fetchAllFilteredMeetings()
+      const data = prepareExportData(meetingsToExport)
+      if (data.length === 0) {
+        alert("No data to export")
+        return
+      }
 
-    const headers = Object.keys(data[0])
+      const headers = Object.keys(data[0])
     const csvRows = [
       headers.join(","),
       ...data.map(row => 
@@ -439,16 +325,22 @@ function HistoryPageContent() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    } catch (error) {
+      console.error("Export failed:", error)
+      alert("Failed to export data")
+    }
   }
 
-  const exportToPDF = () => {
-    const data = prepareExportData()
-    if (data.length === 0) {
-      alert("No data to export")
-      return
-    }
+  const exportToPDF = async () => {
+    try {
+      const meetingsToExport = await fetchAllFilteredMeetings()
+      const data = prepareExportData(meetingsToExport)
+      if (data.length === 0) {
+        alert("No data to export")
+        return
+      }
 
-    const doc = new jsPDF()
+      const doc = new jsPDF()
     
     // Add title
     doc.setFontSize(16)
@@ -477,6 +369,10 @@ function HistoryPageContent() {
 
     // Save PDF
     doc.save(`meetings_export_${format(new Date(), "yyyy-MM-dd")}.pdf`)
+    } catch (error) {
+      console.error("Export failed:", error)
+      alert("Failed to export data")
+    }
   }
 
   const escapeCsvValue = (value: string) => {
@@ -552,15 +448,21 @@ function HistoryPageContent() {
     URL.revokeObjectURL(url)
   }
 
-  const exportAllTranscriptionsToCSV = () => {
-    const transcriptRows = prepareTranscriptExportData(filteredMeetings)
-    exportTranscriptRowsToCSV(
-      transcriptRows,
-      `transcriptions_export_${format(new Date(), "yyyy-MM-dd")}.csv`
-    )
+  const exportAllTranscriptionsToCSV = async () => {
+    try {
+      const meetingsToExport = await fetchAllFilteredMeetings()
+      const transcriptRows = prepareTranscriptExportData(meetingsToExport)
+      exportTranscriptRowsToCSV(
+        transcriptRows,
+        `transcriptions_export_${format(new Date(), "yyyy-MM-dd")}.csv`
+      )
+    } catch (error) {
+      console.error("Export failed:", error)
+      alert("Failed to export transcriptions")
+    }
   }
 
-  const exportSelectedAgentTranscriptionsToCSV = () => {
+  const exportSelectedAgentTranscriptionsToCSV = async () => {
     const selectedAgentFilter = activeFilters.find(
       (filter) => filter.field === "assistant_name"
     )
@@ -570,10 +472,12 @@ function HistoryPageContent() {
       return
     }
 
-    const agentMeetings = filteredMeetings.filter(
-      (meeting) => meeting.agent_type === selectedAgentFilter.value
-    )
-    const transcriptRows = prepareTranscriptExportData(agentMeetings)
+    try {
+      const meetingsToExport = await fetchAllFilteredMeetings()
+      const agentMeetings = meetingsToExport.filter(
+        (meeting) => meeting.agent_type === selectedAgentFilter.value
+      )
+      const transcriptRows = prepareTranscriptExportData(agentMeetings)
     const safeAgentName = selectedAgentFilter.value
       .trim()
       .replace(/\s+/g, "_")
@@ -584,6 +488,10 @@ function HistoryPageContent() {
       transcriptRows,
       `transcriptions_${safeAgentName}_${format(new Date(), "yyyy-MM-dd")}.csv`
     )
+    } catch (error) {
+      console.error("Export failed:", error)
+      alert("Failed to export transcriptions")
+    }
   }
 
   const handleMeetingClick = async (meeting: Meeting) => {
@@ -760,7 +668,7 @@ function HistoryPageContent() {
                               }}
                               className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 rounded"
                             >
-                              {number}
+                              {maskPhoneLastDigits(number)}
                             </button>
                           ))
                         )}
@@ -789,7 +697,7 @@ function HistoryPageContent() {
                 ) : (
                   // Show filter options list
                   <div className="py-1">
-                    {filterOptions.map(option => (
+                    {filterFieldOptions.map(option => (
                       <button
                         key={option.id}
                         onClick={() => setAddingFilter(option.id)}
@@ -872,7 +780,12 @@ function HistoryPageContent() {
                 className="flex items-center gap-1.5 bg-slate-100 rounded-full px-3 py-1"
               >
                 <span className="text-sm text-slate-700">
-                  {getFilterLabel(filter.field)}: <span className="font-medium">{filter.value}</span>
+                  {getFilterLabel(filter.field)}:{" "}
+                  <span className="font-medium">
+                    {filter.field === "from_number"
+                      ? maskPhoneLastDigits(filter.value as string)
+                      : filter.value}
+                  </span>
                 </span>
                 <button
                   onClick={() => removeFilter(index)}
@@ -1068,7 +981,7 @@ function HistoryPageContent() {
                                 }}
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 rounded"
                               >
-                                {number}
+                                {maskPhoneLastDigits(number)}
                               </button>
                             ))
                           )}
@@ -1180,11 +1093,16 @@ function HistoryPageContent() {
             </div>
 
             {/* Table Body */}
-            {isLoading ? (
+            {isError && (
+              <div className="text-center py-12 text-red-600 text-sm">
+                Failed to load calls. Please try again.
+              </div>
+            )}
+            {!isError && isLoading ? (
               <div className="px-5 py-12 text-center text-slate-500">
                 Loading calls...
               </div>
-            ) : paginatedMeetings.length === 0 ? (
+            ) : !isError && paginatedMeetings.length === 0 ? (
               <div className="px-5 py-12 text-center text-slate-500">
                 {activeFilters.length > 0 
                   ? "No calls match your filters" 
@@ -1265,7 +1183,11 @@ function HistoryPageContent() {
                       <div className="text-slate-900">{meeting.to_number || "-"}</div>
                     </div>
                     <div className="text-sm">
-                      <div className="text-slate-900">{meeting.from_number || "-"}</div>
+                      <div className="text-slate-900">
+                        {meeting.from_number
+                          ? maskPhoneLastDigits(meeting.from_number)
+                          : "-"}
+                      </div>
                     </div>
                     <div>
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[callStatus as keyof typeof statusColors]}`}>
@@ -1332,19 +1254,22 @@ function HistoryPageContent() {
               size="icon"
               className="h-9 w-9 rounded-full"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              disabled={currentPage === 1 || isFetching}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm text-slate-600">
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredMeetings.length)} calls
+              {totalMeetings === 0
+                ? "No calls"
+                : `Showing ${(currentPage - 1) * MEETINGS_PAGE_SIZE + 1} to ${Math.min(currentPage * MEETINGS_PAGE_SIZE, totalMeetings)} of ${totalMeetings} calls`}
+              {isFetching && totalMeetings > 0 ? " (loading…)" : ""}
             </span>
             <Button
               variant="outline"
               size="icon"
               className="h-9 w-9 rounded-full"
               onClick={() => setCurrentPage(p => p + 1)}
-              disabled={currentPage * itemsPerPage >= filteredMeetings.length}
+              disabled={currentPage * MEETINGS_PAGE_SIZE >= totalMeetings || isFetching}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

@@ -112,6 +112,27 @@ export async function fetchApiRoute(
   return response
 }
 
+async function parseErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
+  const contentType = response.headers.get("content-type") || ""
+  if (contentType.includes("application/json")) {
+    try {
+      const error = await response.json()
+      return error.detail || error.error || fallbackMessage
+    } catch {
+      return fallbackMessage
+    }
+  }
+  try {
+    const text = await response.text()
+    if (text && text.trim().length > 0) {
+      return `${fallbackMessage}: ${text.slice(0, 200)}`
+    }
+  } catch {
+    return fallbackMessage
+  }
+  return fallbackMessage
+}
+
 /**
  * Get current user info (works for both org owners and members)
  */
@@ -161,11 +182,10 @@ export async function createAgent(agentData: CreateAgentRequest): Promise<Agent>
  * Get a single agent by ID
  */
 export async function getAgent(agentId: string, orgId: string): Promise<Agent> {
-  const response = await fetchApiRoute(`/api/agents/${agentId}?org_id=${encodeURIComponent(orgId)}`)
+  const response = await fetchApiRoute(`/api/agents/${encodeURIComponent(agentId)}?org_id=${encodeURIComponent(orgId)}`)
   
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || error.error || "Failed to fetch agent")
+    throw new Error(await parseErrorMessage(response, "Failed to fetch agent"))
   }
   
   return response.json()
@@ -175,14 +195,13 @@ export async function getAgent(agentId: string, orgId: string): Promise<Agent> {
  * Update an agent
  */
 export async function updateAgent(agentId: string, agentData: CreateAgentRequest): Promise<Agent> {
-  const response = await fetchApiRoute(`/api/agents/${agentId}`, {
+  const response = await fetchApiRoute(`/api/agents/${encodeURIComponent(agentId)}`, {
     method: "PUT",
     body: JSON.stringify(agentData),
   })
   
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || error.error || "Failed to update agent")
+    throw new Error(await parseErrorMessage(response, "Failed to update agent"))
   }
   
   return response.json()
@@ -191,14 +210,22 @@ export async function updateAgent(agentId: string, agentData: CreateAgentRequest
 /**
  * Delete an agent
  */
-export async function deleteAgent(agentId: string): Promise<{ status: string; message: string }> {
-  const response = await fetchApiRoute(`/api/agents/${agentId}`, {
-    method: "DELETE",
-  })
+export async function deleteAgent(
+  agentId: string,
+  options?: { agentType?: string }
+): Promise<{ status: string; message: string }> {
+  const trimmedAgentType = options?.agentType?.trim() || ""
+  const hasAgentType = trimmedAgentType.length > 0
+  const response = hasAgentType
+    ? await fetchApiRoute(`/api/agents?agent_type=${encodeURIComponent(trimmedAgentType)}`, {
+        method: "DELETE",
+      })
+    : await fetchApiRoute(`/api/agents/${encodeURIComponent(agentId)}`, {
+        method: "DELETE",
+      })
   
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || error.error || "Failed to delete agent")
+    throw new Error(await parseErrorMessage(response, "Failed to delete agent"))
   }
   
   return response.json()
@@ -331,6 +358,8 @@ export interface Agent {
   phone_number?: string
   vobiz_app_id?: string
   vobiz_answer_url?: string
+  plivo_app_id?: string
+  plivo_answer_url?: string
 }
 
 export interface AgentConfig {
@@ -344,6 +373,7 @@ export interface AgentConfig {
   llm_model: {
     name: string
     model?: string
+    vistaar_environment?: "prod" | "dev"
   }
   stt_model: {
     name: string
@@ -374,9 +404,13 @@ export interface CreateAgentRequest {
   agent_id: string
   agent_category: string
   agent_config: AgentConfig
+  /** BFF-only: original agent_type for PUT lookup when renaming */
+  original_agent_type?: string
   telephony_provider?: string
   vobiz_app_id?: string
   vobiz_answer_url?: string
+  plivo_app_id?: string
+  plivo_answer_url?: string
 }
 
 export interface Campaign {
@@ -407,21 +441,92 @@ export interface CreateAudienceRequest {
   parameters?: Record<string, any>
 }
 
+export interface MeetingsPageParams {
+  page?: number
+  limit?: number
+  forExport?: boolean
+  agent_type?: string
+  from_number?: string
+  to_number?: string
+  inbound?: boolean
+  call_status?: string
+  date_from?: string
+  date_to?: string
+  date_sort_order?: "latest" | "oldest"
+  duration_sort_order?: "longest" | "shortest" | null
+}
+
+export interface PaginatedMeetings {
+  items: Meeting[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface MeetingFilterOptions {
+  agent_types: string[]
+  from_numbers: string[]
+  to_numbers: string[]
+}
+
+function buildMeetingsQueryString(params: MeetingsPageParams): string {
+  const q = new URLSearchParams()
+  q.set("page", String(params.page ?? 1))
+  q.set("limit", String(params.limit ?? 50))
+  if (params.forExport) q.set("for_export", "true")
+  if (params.agent_type) q.set("agent_type", params.agent_type)
+  if (params.from_number) q.set("from_number", params.from_number)
+  if (params.to_number) q.set("to_number", params.to_number)
+  if (params.inbound !== undefined) q.set("inbound", String(params.inbound))
+  if (params.call_status) q.set("call_status", params.call_status)
+  if (params.date_from) q.set("date_from", params.date_from)
+  if (params.date_to) q.set("date_to", params.date_to)
+  if (params.date_sort_order) q.set("date_sort_order", params.date_sort_order)
+  if (params.duration_sort_order) {
+    q.set("duration_sort_order", params.duration_sort_order)
+  }
+  return q.toString()
+}
+
 /**
- * Get all meetings for an organization
+ * Fetch a paginated page of meetings (History tab).
  */
-export async function getMeetings(agentType?: string): Promise<Meeting[]> {
-  const url = agentType 
-    ? `/api/meetings?agent_type=${encodeURIComponent(agentType)}`
-    : `/api/meetings`
-  const response = await fetchApiRoute(url)
-  
+export async function getMeetingsPage(
+  params: MeetingsPageParams = {}
+): Promise<PaginatedMeetings> {
+  const response = await fetchApiRoute(`/api/meetings?${buildMeetingsQueryString(params)}`)
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.detail || error.error || "Failed to fetch meetings")
   }
-  
+
   return response.json()
+}
+
+export async function getMeetingFilterOptions(): Promise<MeetingFilterOptions> {
+  const response = await fetchApiRoute("/api/meetings/filter-options")
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(
+      error.detail || error.error || "Failed to fetch meeting filter options"
+    )
+  }
+
+  return response.json()
+}
+
+/**
+ * Get all meetings for an organization (first page only; prefer getMeetingsPage).
+ */
+export async function getMeetings(agentType?: string): Promise<Meeting[]> {
+  const result = await getMeetingsPage({
+    page: 1,
+    limit: 50,
+    agent_type: agentType,
+  })
+  return result.items
 }
 
 /**
@@ -494,6 +599,13 @@ export async function deleteVobizApplication(applicationId: string): Promise<{ s
   
   if (!response.ok) {
     const error = await response.json()
+    const errorMessage = String(error.detail || error.error || "")
+    if (response.status === 404 || errorMessage.toLowerCase().includes("not found")) {
+      return {
+        status: "success",
+        message: "Vobiz application already deleted",
+      }
+    }
     throw new Error(error.detail || error.error || "Failed to delete Vobiz application")
   }
   
@@ -552,6 +664,97 @@ export async function unlinkVobizNumber(phoneNumber: string): Promise<{ status: 
     throw new Error(error.detail || error.error || "Failed to unlink phone number")
   }
   
+  return response.json()
+}
+
+/**
+ * Create a Plivo application
+ */
+export async function createPlivoApplication(agentType: string, answerUrl: string): Promise<{ status: string; message: string; app_id?: string }> {
+  const response = await fetchApiRoute("/api/plivo/application", {
+    method: "POST",
+    body: JSON.stringify({
+      agent_type: agentType,
+      answer_url: answerUrl,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to create Plivo application")
+  }
+
+  return response.json()
+}
+
+/**
+ * Delete a Plivo application
+ */
+export async function deletePlivoApplication(applicationId: string): Promise<{ status: string; message: string }> {
+  const response = await fetchApiRoute(`/api/plivo/application/${applicationId}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to delete Plivo application")
+  }
+
+  return response.json()
+}
+
+/**
+ * Get Plivo phone numbers
+ */
+export async function getPlivoNumbers(): Promise<{ status: string; numbers: string[] }> {
+  const response = await fetchApiRoute("/api/plivo/numbers", {
+    method: "GET",
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to fetch Plivo numbers")
+  }
+
+  return response.json()
+}
+
+/**
+ * Link a phone number to a Plivo application
+ */
+export async function linkPlivoNumber(phoneNumber: string, applicationId: string): Promise<{ status: string; message: string }> {
+  const response = await fetchApiRoute("/api/plivo/numbers/link", {
+    method: "POST",
+    body: JSON.stringify({
+      phone_number: phoneNumber,
+      application_id: applicationId,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to link phone number")
+  }
+
+  return response.json()
+}
+
+/**
+ * Unlink a phone number from a Plivo application
+ */
+export async function unlinkPlivoNumber(phoneNumber: string): Promise<{ status: string; message: string }> {
+  const response = await fetchApiRoute("/api/plivo/numbers/unlink", {
+    method: "DELETE",
+    body: JSON.stringify({
+      phone_number: phoneNumber,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to unlink phone number")
+  }
+
   return response.json()
 }
 
