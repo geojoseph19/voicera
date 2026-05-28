@@ -343,4 +343,4 @@ make start-all-services
 
 ## License
 
-Proprietary - All rights reserved.
+This project is licensed under the [MIT License](LICENSE) 
