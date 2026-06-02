@@ -171,12 +171,13 @@ VOBIZ_AUTH_TOKEN=your-auth-token
 ### Frontend (`voicera_frontend/.env.local`)
 
 ```bash
-# API URLs (host only — do not include /api/v1)
+# API URLs
+NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
 API_URL=http://localhost:8000
-NEXT_PUBLIC_API_URL=http://localhost:8000
 VOICE_SERVER_URL=http://localhost:7860
 
-# When running in Docker, use service names for server-side routes only:
+# When running in Docker, use service names:
+# NEXT_PUBLIC_API_URL=http://nginx:8080/api/v1
 # API_URL=http://backend:8000
 # VOICE_SERVER_URL=http://voice_server:7860
 ```
@@ -343,4 +344,4 @@ make start-all-services
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE) 
+MIT License — Copyright (c) 2026 COSS India. See [LICENSE](LICENSE).
