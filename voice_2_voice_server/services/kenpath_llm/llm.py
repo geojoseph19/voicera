@@ -66,7 +66,7 @@ class KenpathLLM(OpenAILLMService):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.response_timeout = 1.0  # seconds
+        self.response_timeout = 0.3  # seconds
         self._vistaar_session_id = vistaar_session_id
 
         # JWT config
