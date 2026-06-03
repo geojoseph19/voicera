@@ -80,6 +80,6 @@ MongoDB and MinIO are used by the backend, not directly by the frontend.
 ## Documentation
 
 - [Frontend service (MkDocs)](../docs/services/frontend.md)
-- [Dashboard walkthrough](../docs/guide/dashboard.md) (operator guide; screenshots tracked separately)
+- [Dashboard walkthrough](../docs/guide/dashboard.md)
 - [Verify it works](../docs/guide/verification.md)
-- [Source brief A1](../docs/source-briefs/A1-submodule-readmes.md) · [B3 screenshots brief](../docs/source-briefs/B3-dashboard-walkthrough.md)
+- [Source brief A1](../docs/source-briefs/A1-submodule-readmes.md) · [B3 walkthrough brief](../docs/source-briefs/B3-dashboard-walkthrough.md)

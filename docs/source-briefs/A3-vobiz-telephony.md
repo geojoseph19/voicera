@@ -90,4 +90,4 @@ Backend may also use `VOBIZ_API_BASE_URL` from settings for application CRUD API
 | Hangup | Webhook event; meeting end metadata saved |
 | User busy | `HangupCause=USER_BUSY` logged |
 
-**Writer:** Add sequence diagram + Vobiz portal screenshots (application URL field, which URL to paste) from staging deployment.
+**Writer:** Add sequence diagram and document the Vobiz portal application URL field (which URL to paste) from staging deployment.

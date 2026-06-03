@@ -64,7 +64,7 @@ Backend: `http://<your-backend>:8000/docs`. Voice server: `http://<your-voice-ho
 
 ### What should I send when reporting a problem?
 
-Time of incident, agent name, phone number (if relevant), whether Test on Browser worked, screenshot of errors, organization name.
+Time of incident, agent name, phone number (if relevant), whether Test on Browser worked, any error messages shown, organization name.
 
 ### Who fixes server errors?
 

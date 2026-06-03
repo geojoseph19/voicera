@@ -64,7 +64,7 @@ A: **MIT License** only — Copyright (c) 2026 COSS India. See `LICENSE` in the 
 ## Getting help
 
 **Q: What information should I send when reporting a problem?**  
-A: Time of incident, agent name, phone number (if call-related), whether Test on Browser worked, screenshot of any error, and your organization name.
+A: Time of incident, agent name, phone number (if call-related), whether Test on Browser worked, any error message shown, and your organization name.
 
 **Q: Who fixes server errors?**  
 A: Your **hosting partner** uses Docker logs; operators use the dashboard for configuration checks (B7).

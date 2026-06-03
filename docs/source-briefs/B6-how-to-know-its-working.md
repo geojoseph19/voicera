@@ -60,7 +60,7 @@ Give hosting partner:
 1. Date and time of test
 2. Agent name or ID
 3. Phone number used (if applicable)
-4. Screenshot of dashboard error (if any)
+4. Any error message shown in the dashboard (if any)
 5. Whether Test on Browser worked (yes/no)
 
 Partner checks logs:
