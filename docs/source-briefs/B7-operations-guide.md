@@ -44,7 +44,7 @@
 2. **Storage:** Recordings stored in MinIO (technical detail — partner may use MinIO console on port 9001 **only on secure internal network**).
 3. **Backend API:** `GET /api/v1/call-recordings` and meeting detail endpoints (integrators — see A2).
 
-**Writer:** Confirm exact UI path for recordings on staging and document with screenshot.
+**Writer:** Confirm exact UI path for recordings on staging and document the steps in the operator guide.
 
 ---
 

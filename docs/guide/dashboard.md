@@ -1,6 +1,6 @@
 # Dashboard walkthrough
 
-This guide explains the VoicERA web dashboard for operators. Screenshots should be captured on your **staging** environment (redact API keys and personal numbers).
+This guide explains the VoicERA web dashboard for operators.
 
 ## Login
 
@@ -65,19 +65,6 @@ When recording is enabled, audio may be available from the dashboard or via MinI
 ## Campaigns and batches (optional)
 
 If enabled, **Campaigns** / **Batches** support outbound calling to lists of numbers. Requires audience CSV upload and worker configuration — see backend Swagger for `/api/v1/batches`.
-
-## Screenshot checklist (documentation writers)
-
-| # | Screen | Caption should explain |
-|---|--------|------------------------|
-| 1 | Login | How users access the system |
-| 2 | Home after login | Landing view |
-| 3 | Assistants list | Each card = one agent |
-| 4–7 | Create agent steps | Name, telephony, AI, prompt |
-| 8 | Integrations | Where Vobiz credentials are saved |
-| 9–10 | Phone numbers | List and link to agent |
-| 11–12 | Test on Browser | Mic permission and connected state |
-| 13–14 | Meetings / recordings | Post-call verification |
 
 ## How to make a call
 

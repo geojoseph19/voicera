@@ -46,7 +46,7 @@ If this fails, the issue is usually [public voice URLs](../deployment/public-voi
 1. Date and time
 2. Agent name or ID
 3. Phone number used (if applicable)
-4. Screenshot of any dashboard error
+4. Any error message shown in the dashboard
 5. Whether **Test on Browser** worked (yes/no)
 
 Hosting partner log commands:

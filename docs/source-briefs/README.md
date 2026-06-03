@@ -6,8 +6,7 @@ One file per item from the VoicERA documentation review. Each brief gives the do
 
 1. Open the brief for the review item you are writing.
 2. Expand into user-facing documentation (plain language for B*, technical detail for A*).
-3. Capture screenshots on staging for **B3** only.
-4. **A7:** Document MIT license (COSS India, 2026) — see `LICENSE` file.
+3. **A7:** Document MIT license (COSS India, 2026) — see `LICENSE` file.
 
 ## Index
 
@@ -23,7 +22,7 @@ One file per item from the VoicERA documentation review. Each brief gives the do
 | [A8-johnaic-public-urls.md](./A8-johnaic-public-urls.md) | JOHNAIC / public URLs |
 | [B1-plain-language-overview.md](./B1-plain-language-overview.md) | Plain-language overview |
 | [B2-before-you-start-checklist.md](./B2-before-you-start-checklist.md) | Prerequisites checklist |
-| [B3-dashboard-walkthrough.md](./B3-dashboard-walkthrough.md) | Dashboard screenshots |
+| [B3-dashboard-walkthrough.md](./B3-dashboard-walkthrough.md) | Dashboard walkthrough |
 | [B4-glossary.md](./B4-glossary.md) | Glossary |
 | [B5-deployment-walkthrough.md](./B5-deployment-walkthrough.md) | Deployment steps |
 | [B6-how-to-know-its-working.md](./B6-how-to-know-its-working.md) | Success verification |
