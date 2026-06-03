@@ -36,10 +36,10 @@ export function CallLatencyDetailSkeleton() {
         {Array.from({ length: 3 }).map((_, i) => (
           <div
             key={i}
-            className="bg-white rounded-xl border border-slate-200 p-4 space-y-2"
+            className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col min-h-[5.5rem] min-w-0"
           >
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-5 w-24 mb-2" />
+            <Skeleton className="h-8 w-20 mt-auto" />
           </div>
         ))}
       </div>

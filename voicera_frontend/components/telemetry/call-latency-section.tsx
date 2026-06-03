@@ -138,7 +138,12 @@ function CallMetricsDetail({
   const summaryItems = [
     { label: "Avg STT", value: summary?.avg_stt_ms, icon: Mic },
     { label: "Avg LLM TTFB", value: summary?.avg_llm_ttfb_ms, icon: MessageSquare },
-    { label: "Avg TTS first chunk", value: summary?.avg_tts_first_chunk_ms, icon: Volume2 },
+    {
+      label: "Avg TTS 1st chunk",
+      labelTitle: "Avg TTS first chunk",
+      value: summary?.avg_tts_first_chunk_ms,
+      icon: Volume2,
+    },
   ]
 
   if (loading) {
@@ -181,16 +186,19 @@ function CallMetricsDetail({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {summaryItems.map(({ label, value, icon: Icon }) => (
+        {summaryItems.map(({ label, labelTitle, value, icon: Icon }) => (
           <div
             key={label}
-            className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm"
+            className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col min-h-[5.5rem] min-w-0"
           >
-            <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5 mb-2">
-              <Icon className="h-3.5 w-3.5" />
-              {label}
+            <p
+              className="text-xs font-medium text-slate-500 flex items-center gap-1.5 mb-2 min-h-5 whitespace-nowrap"
+              title={labelTitle}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{label}</span>
             </p>
-            <p className="text-2xl font-semibold text-slate-900 tabular-nums">
+            <p className="text-2xl font-semibold text-slate-900 tabular-nums mt-auto">
               {formatMs(value)}
             </p>
           </div>
