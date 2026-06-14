@@ -14,19 +14,19 @@ from pipecat.frames.frames import (
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 
-class MarathiIdlePromptFilter(FrameProcessor):
-    """For Marathi calls, plays an idle prompt if user stays silent after bot speech."""
-
-    IDLE_PROMPT_TEXT = "हॅलो, तुम्ही अजून कॉलवर आहात का"
+class UserOnlineDetectionFilter(FrameProcessor):
+    """Plays a prompt if the user stays silent after the bot finishes speaking."""
 
     def __init__(
         self,
+        prompt_text: str,
         timeout_secs: float = 10.0,
         suppress_idle_when: Optional[Callable[[], bool]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self._timeout_secs = timeout_secs
+        self._prompt_text = str(prompt_text).strip()
+        self._timeout_secs = max(1.0, float(timeout_secs))
         self._idle_task: Optional[asyncio.Task] = None
         self._ignore_next_bot_stop = False
         self._suppress_idle_when = suppress_idle_when
@@ -43,19 +43,20 @@ class MarathiIdlePromptFilter(FrameProcessor):
             try:
                 await asyncio.sleep(self._timeout_secs)
                 logger.info(
-                    f"User silence detected for {self._timeout_secs}s, sending Marathi idle prompt"
+                    "User silence detected for {:.0f}s, sending online detection prompt",
+                    self._timeout_secs,
                 )
                 self._ignore_next_bot_stop = True
                 # This processor is placed after TTS in the pipeline, so send
                 # the speak frame upstream to ensure it flows through TTS.
                 await self.push_frame(
-                    TTSSpeakFrame(self.IDLE_PROMPT_TEXT),
+                    TTSSpeakFrame(self._prompt_text),
                     FrameDirection.UPSTREAM,
                 )
             except asyncio.CancelledError:
                 return
             except Exception as exc:
-                logger.error(f"Failed to send Marathi idle prompt: {exc}")
+                logger.error(f"Failed to send user online detection prompt: {exc}")
 
         self._idle_task = asyncio.create_task(_timer())
 

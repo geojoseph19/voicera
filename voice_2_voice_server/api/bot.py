@@ -43,8 +43,9 @@ from .services import (
     ServiceCreationError,
 )
 from services.audio.greeting_interruption_filter import create_greeting_filters
-from services.audio.marathi_idle_prompt_filter import MarathiIdlePromptFilter
+from services.audio.user_online_detection_filter import UserOnlineDetectionFilter
 from services.call_goodbye import GoodbyeHangupProcessor
+from services.call_management import UserSilenceHangupProcessor
 from services.vllm_qwen import ensure_no_think_suffix
 from .call_recording_utils import submit_call_recording
 from .vobiz_recording import start_vobiz_call_recording, wait_and_download_vobiz_recording
@@ -82,6 +83,94 @@ except Exception as e:
 def _get_sample_rate() -> int:
     """Get the audio sample rate from environment."""
     return int(os.getenv("SAMPLE_RATE", "8000"))
+
+
+def _get_ignore_user_speech_before_greeting(agent_config: dict) -> bool:
+    """Default True for agents created before this setting existed."""
+    raw = agent_config.get("ignore_user_speech_before_greeting")
+    if raw is None:
+        return True
+    return bool(raw)
+
+
+def _get_interruption_min_words(agent_config: dict) -> int:
+    """Default 1 word for agents created before this setting existed."""
+    raw = agent_config.get("interruption_min_words")
+    if raw is None:
+        return 1
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _get_call_timeout_seconds(agent_config: dict) -> int:
+    """Default 600s (10 min), falling back to legacy session_timeout_minutes."""
+    raw = agent_config.get("call_timeout_seconds")
+    if raw is not None:
+        try:
+            return max(60, int(raw))
+        except (TypeError, ValueError):
+            pass
+    try:
+        minutes = int(agent_config.get("session_timeout_minutes", 10))
+        return max(60, minutes * 60)
+    except (TypeError, ValueError):
+        return 600
+
+
+def _get_user_silence_hangup_seconds(agent_config: dict) -> int:
+    """Default 0 (disabled) for agents created before this setting existed."""
+    raw = agent_config.get("user_silence_hangup_seconds")
+    if raw is None:
+        return 0
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _get_hold_messages(agent_config: dict) -> list[str]:
+    """Hold messages from agent config; empty list disables hold audio."""
+    raw = agent_config.get("hold_messages")
+    if not isinstance(raw, list):
+        return []
+    return [str(msg).strip() for msg in raw if str(msg).strip()]
+
+
+def _get_hold_message_timeout_seconds(agent_config: dict) -> float:
+    """Seconds to wait for first LLM chunk before playing a hold message."""
+    raw = agent_config.get("hold_message_timeout_seconds")
+    if raw is None:
+        return 0.3
+    try:
+        return max(0.05, float(raw))
+    except (TypeError, ValueError):
+        return 0.3
+
+
+def _get_user_online_detection_enabled(agent_config: dict) -> bool:
+    """Whether to prompt the caller after silence following bot speech."""
+    return bool(agent_config.get("user_online_detection_enabled"))
+
+
+def _get_user_online_detection_message(agent_config: dict) -> str:
+    """Prompt played when the user stays silent after bot speech."""
+    raw = agent_config.get("user_online_detection_message")
+    if raw is None:
+        return ""
+    return str(raw).strip()
+
+
+def _get_user_online_detection_seconds(agent_config: dict) -> float:
+    """Seconds of user silence after bot speech before playing the prompt."""
+    raw = agent_config.get("user_online_detection_seconds")
+    if raw is None:
+        return 10.0
+    try:
+        return max(1.0, float(raw))
+    except (TypeError, ValueError):
+        return 10.0
 
 
 class FastPunctuationAggregator(BaseTextAggregator):
@@ -133,17 +222,19 @@ class BargeInInterruptionProcessor(FrameProcessor):
     Layer 2 — Speaking guard (_user_speaking flag)
         Only armed when UserStartedSpeakingFrame is seen (Silero approved).
 
-    Layer 3 — Transcript gate + minimum length
-        Requires ≥ 3 chars before emitting InterruptionFrame.
-        A loud cough slipping Silero typically produces 1–2 garbage chars.
+    Layer 3 — Transcript gate + minimum word count
+        Requires at least ``min_words`` spoken words before emitting InterruptionFrame.
+        A loud cough slipping Silero typically produces garbage with too few words.
     """
 
-    MIN_TEXT_CHARS = 3
-
-    def __init__(self, **kwargs):
+    def __init__(self, min_words: int = 1, **kwargs):
         super().__init__(**kwargs)
+        self._min_words = max(1, min_words)
         self._user_speaking: bool = False
         self._interrupted: bool = False
+
+    def _word_count(self, text: str) -> int:
+        return len(text.split()) if text else 0
 
     async def process_frame(self, frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -161,10 +252,15 @@ class BargeInInterruptionProcessor(FrameProcessor):
 
         elif isinstance(frame, (InterimTranscriptionFrame, TranscriptionFrame)):
             text = frame.text.strip()
-            if self._user_speaking and not self._interrupted and len(text) >= self.MIN_TEXT_CHARS:
+            if (
+                self._user_speaking
+                and not self._interrupted
+                and self._word_count(text) >= self._min_words
+            ):
                 self._interrupted = True
                 logger.debug(
-                    "Barge-in confirmed (Silero + transcript '{}') — interrupting bot",
+                    "Barge-in confirmed (Silero + {} words in '{}') — interrupting bot",
+                    self._word_count(text),
                     text[:80],
                 )
                 await self.push_frame(InterruptionFrame(), direction)
@@ -249,6 +345,10 @@ async def run_bot(
             vistaar_session_id=vistaar_session_id,
             language=agent_config.get("language"),
             org_id=org_id,
+            hold_messages=_get_hold_messages(agent_config),
+            hold_message_timeout_seconds=_get_hold_message_timeout_seconds(
+                agent_config
+            ),
         )
         stt = create_stt_service(stt_config, sample_rate, vad_analyzer=vad_analyzer, org_id=org_id)
         tts = create_tts_service(tts_config, sample_rate, org_id=org_id)
@@ -276,11 +376,12 @@ async def run_bot(
             context_aggregator = llm.create_context_aggregator(context)
         
         _, greeting_blocker, greeting_completer = create_greeting_filters()
-        language_normalized = str(language or "").strip().lower()
-        marathi_idle_prompt_enabled = (
-            language_normalized == "marathi"
-            or language_normalized == "mr"
-            or language_normalized.startswith("mr-")
+        ignore_user_speech_before_greeting = _get_ignore_user_speech_before_greeting(agent_config)
+        interruption_min_words = _get_interruption_min_words(agent_config)
+        logger.info(
+            "Interruption settings | ignore_before_greeting={} min_words={}",
+            ignore_user_speech_before_greeting,
+            interruption_min_words,
         )
         task_ref: dict[str, Optional[PipelineTask]] = {"task": None}
 
@@ -291,22 +392,48 @@ async def run_bot(
 
         goodbye_processor = GoodbyeHangupProcessor(schedule_call_end)
 
-        marathi_idle_prompt_filter = (
-            MarathiIdlePromptFilter(
-                timeout_secs=10.0,
+        user_online_detection_message = _get_user_online_detection_message(agent_config)
+        user_online_detection_enabled = (
+            _get_user_online_detection_enabled(agent_config)
+            and bool(user_online_detection_message)
+        )
+        user_online_detection_seconds = _get_user_online_detection_seconds(agent_config)
+        user_online_detection_filter = (
+            UserOnlineDetectionFilter(
+                prompt_text=user_online_detection_message,
+                timeout_secs=user_online_detection_seconds,
                 suppress_idle_when=goodbye_processor.should_suppress_idle,
             )
-            if marathi_idle_prompt_enabled
+            if user_online_detection_enabled
             else None
         )
-        if marathi_idle_prompt_enabled:
-            logger.info("Marathi idle prompt enabled (10s silence after bot speech)")
+        if user_online_detection_enabled:
+            logger.info(
+                "User online detection enabled ({}s silence after bot speech)",
+                user_online_detection_seconds,
+            )
+
+        user_silence_hangup_secs = _get_user_silence_hangup_seconds(agent_config)
+        user_silence_hangup_filter = (
+            UserSilenceHangupProcessor(
+                timeout_secs=float(user_silence_hangup_secs),
+                schedule_call_end=schedule_call_end,
+                suppress_idle_when=goodbye_processor.should_suppress_idle,
+            )
+            if user_silence_hangup_secs > 0
+            else None
+        )
+        if user_silence_hangup_filter:
+            logger.info(
+                "User silence hangup enabled ({}s after bot speech)",
+                user_silence_hangup_secs,
+            )
 
         pipeline_processors = [
             transport.input(),
             stt,
             greeting_blocker,
-            BargeInInterruptionProcessor(),
+            BargeInInterruptionProcessor(min_words=interruption_min_words),
             transcript.user(),
             context_aggregator.user(),
             llm,
@@ -314,8 +441,10 @@ async def run_bot(
             tts,
             greeting_completer,
         ]
-        if marathi_idle_prompt_filter:
-            pipeline_processors.append(marathi_idle_prompt_filter)
+        if user_online_detection_filter:
+            pipeline_processors.append(user_online_detection_filter)
+        if user_silence_hangup_filter:
+            pipeline_processors.append(user_silence_hangup_filter)
         pipeline_processors.append(transcript.assistant())
         if audiobuffer is not None:
             pipeline_processors.append(audiobuffer)
@@ -349,7 +478,8 @@ async def run_bot(
             greeting = agent_config.get("greeting_message", '')
             if len(greeting.strip()) > 1:
                 logger.info(f"greeting: {greeting}")
-                greeting_blocker.start_greeting()
+                if ignore_user_speech_before_greeting:
+                    greeting_blocker.start_greeting()
                 await task.queue_frames([TTSSpeakFrame(greeting)])
         
         @transport.event_handler("on_client_disconnected")
@@ -386,7 +516,7 @@ async def bot(
 ) -> str:
     """Main bot entry point - sets up transport and runs the pipeline."""
     sample_rate = sample_rate or _get_sample_rate()
-    session_timeout = agent_config.get("session_timeout_minutes", 10) * 60
+    session_timeout = _get_call_timeout_seconds(agent_config)
 
     import time
     original_send = websocket_client.send_text
@@ -621,7 +751,7 @@ async def ubona_bot(
 ) -> None:
     """Ubona bot entry point - sets up transport and runs the pipeline."""
     sample_rate = 8000  # Ubona only supports 8kHz PCMU
-    session_timeout = agent_config.get("session_timeout_minutes", 10) * 60
+    session_timeout = _get_call_timeout_seconds(agent_config)
 
     call_start_time = time.monotonic()
     storage = MinIOStorage.from_env()

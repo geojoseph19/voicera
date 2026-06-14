@@ -113,7 +113,6 @@ class BhashiniKenpathUserContextAggregator(OpenAIUserContextAggregator):
     to avoid cough/noise one-character ASR artefacts triggering Vistaar.
     """
 
-    # Keep in sync with BargeInInterruptionProcessor.MIN_TEXT_CHARS in bot.py
     MIN_TEXT_CHARS = 2
 
     def __init__(self, *args, **kwargs):

@@ -39,6 +39,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Plus,
+  Trash2,
   Search,
   RefreshCw,
   Phone,
@@ -52,6 +53,7 @@ import {
   Loader2,
   Check,
   X,
+  Timer,
 } from "lucide-react"
 
 // Import JSON data
@@ -185,6 +187,15 @@ interface AgentConfig {
   id: string
   name?: string
   greetingMessage?: string
+  ignoreUserSpeechBeforeGreeting: boolean
+  interruptionMinWords: number
+  userSilenceHangupSeconds: number
+  callTimeoutSeconds: number
+  holdMessages: string[]
+  holdMessageTimeoutSeconds: number
+  userOnlineDetectionEnabled: boolean
+  userOnlineDetectionMessage: string
+  userOnlineDetectionSeconds: number
   systemPrompt: string
   llmProvider: string
   llmModel: string
@@ -216,6 +227,15 @@ const defaultConfig: AgentConfig = {
   id: "",
   name: "",
   greetingMessage: "",
+  ignoreUserSpeechBeforeGreeting: true,
+  interruptionMinWords: 1,
+  userSilenceHangupSeconds: 30,
+  callTimeoutSeconds: 600,
+  holdMessages: [],
+  holdMessageTimeoutSeconds: 0.3,
+  userOnlineDetectionEnabled: false,
+  userOnlineDetectionMessage: "",
+  userOnlineDetectionSeconds: 10,
   systemPrompt: "You are a helpful agent. You will help the customer with their queries and doubts. You will never speak more than 2 sentences. Keep your responses concise",
   llmProvider: "openai",
   llmModel: "gpt-4o",
@@ -246,8 +266,22 @@ const wizardSteps = [
   { id: 2, title: "LLM", subtitle: "Model Config", icon: Settings },
   { id: 3, title: "Audio", subtitle: "STT & TTS", icon: Volume2 },
   { id: 4, title: "Telephony", subtitle: "Select Provider", icon: Phone },
-  { id: 5, title: "Review", subtitle: "Confirm", icon: CheckCircle2 },
+  { id: 5, title: "Call Management", subtitle: "Timeouts & Silence", icon: Timer },
+  { id: 6, title: "Review", subtitle: "Confirm", icon: CheckCircle2 },
 ]
+
+const WIZARD_STEP_COUNT = wizardSteps.length
+
+const formatDurationSeconds = (seconds: number) => {
+  if (seconds <= 0) return "Disabled"
+  if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} min`
+  if (seconds >= 60) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins} min`
+  }
+  return `${seconds}s`
+}
 
 export default function AssistantsPage() {
   const router = useRouter()
@@ -847,7 +881,15 @@ export default function AssistantsPage() {
         agent_config: {
           system_prompt: config.systemPrompt,
           greeting_message: config.greetingMessage,
-          session_timeout_minutes: 10,
+          ignore_user_speech_before_greeting: config.ignoreUserSpeechBeforeGreeting,
+          interruption_min_words: config.interruptionMinWords,
+          user_silence_hangup_seconds: config.userSilenceHangupSeconds,
+          call_timeout_seconds: config.callTimeoutSeconds,
+          hold_messages: config.holdMessages.map((m) => m.trim()).filter(Boolean),
+          hold_message_timeout_seconds: config.holdMessageTimeoutSeconds,
+          user_online_detection_enabled: config.userOnlineDetectionEnabled,
+          user_online_detection_message: config.userOnlineDetectionMessage.trim(),
+          user_online_detection_seconds: config.userOnlineDetectionSeconds,
           language: languageName,
           knowledge_base_enabled: config.llmProvider === "openai" ? config.knowledgeEnabled : false,
           knowledge_document_ids:
@@ -890,13 +932,13 @@ export default function AssistantsPage() {
 
   // Navigate to next step
   const handleNextStep = () => {
-    if (createStep < 5) {
+    if (createStep < WIZARD_STEP_COUNT) {
       setCreateStep(createStep + 1)
     }
   }
 
   // Calculate progress percentage
-  const progressPercent = (createStep / 5) * 100
+  const progressPercent = (createStep / WIZARD_STEP_COUNT) * 100
 
   // Check if a specific step is completed
   const isStepCompleted = (stepId: number) => {
@@ -913,6 +955,8 @@ export default function AssistantsPage() {
       case 4:
         return !!config.telephonyProvider
       case 5:
+        return config.callTimeoutSeconds >= 60
+      case 6:
         return true
       default:
         return false
@@ -936,7 +980,7 @@ export default function AssistantsPage() {
 
   // Get next step label
   const getNextStepLabel = () => {
-    if (createStep === 5) return "Create Agent"
+    if (createStep === WIZARD_STEP_COUNT) return "Create Agent"
     const nextStep = wizardSteps.find(s => s.id === createStep + 1)
     return nextStep ? `Continue to ${nextStep.title}` : "Continue"
   }
@@ -1215,6 +1259,40 @@ export default function AssistantsPage() {
                     <p className="text-sm text-slate-500">
                       This will be the initial message from the agent. You can use variables here using {"{variable_name}"}
                     </p>
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          Ignore user speech before welcome
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          {config.greetingMessage?.trim()
+                            ? "Block barge-in while the welcome message is playing."
+                            : "Add a welcome message to enable this."}
+                        </p>
+                      </div>
+                      <label
+                        className={`relative inline-flex shrink-0 items-center ${
+                          config.greetingMessage?.trim()
+                            ? "cursor-pointer"
+                            : "cursor-not-allowed opacity-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={config.ignoreUserSpeechBeforeGreeting}
+                          disabled={!config.greetingMessage?.trim()}
+                          onChange={() =>
+                            updateConfig(
+                              "ignoreUserSpeechBeforeGreeting",
+                              !config.ignoreUserSpeechBeforeGreeting
+                            )
+                          }
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer-checked:bg-emerald-600 transition-colors" />
+                        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
+                      </label>
+                    </div>
                   </div>
 
                   {/* Agent Prompt */}
@@ -1890,8 +1968,271 @@ export default function AssistantsPage() {
               </div>
             )}
 
-            {/* Step 5: Review */}
+            {/* Step 5: Call Management */}
             {createStep === 5 && (
+              <div className="bg-white rounded-xl border border-slate-200 p-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Call Management</h2>
+                <p className="text-slate-500 mb-8">
+                  Control interruptions, welcome behavior, silence handling, and call duration.
+                </p>
+
+                <div className="space-y-10">
+                  {/* Interruption */}
+                  <div className="space-y-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Interruption
+                    </p>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label className="text-base font-bold text-slate-900">
+                          Words before interrupting
+                        </label>
+                        <p className="text-sm text-slate-500 mt-1">
+                          Minimum words the caller must speak before the bot stops its audio.
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                        {config.interruptionMinWords} {config.interruptionMinWords === 1 ? "word" : "words"}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[config.interruptionMinWords]}
+                      onValueChange={([value]) => updateConfig("interruptionMinWords", value)}
+                      min={1}
+                      max={10}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      User online detection
+                    </p>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-base font-bold text-slate-900">
+                          Enable user online detection
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          Ask whether the caller is still on the line after they stay silent.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex shrink-0 items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={config.userOnlineDetectionEnabled}
+                          onChange={() =>
+                            updateConfig(
+                              "userOnlineDetectionEnabled",
+                              !config.userOnlineDetectionEnabled
+                            )
+                          }
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer-checked:bg-emerald-600 transition-colors" />
+                        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
+                      </label>
+                    </div>
+
+                    {config.userOnlineDetectionEnabled && (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-base font-bold text-slate-900">
+                            Detection message
+                          </label>
+                          <Textarea
+                            value={config.userOnlineDetectionMessage}
+                            onChange={(e) =>
+                              updateConfig("userOnlineDetectionMessage", e.target.value)
+                            }
+                            placeholder="e.g. Hello, are you still on the call?"
+                            rows={2}
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <label className="text-base font-bold text-slate-900">
+                              Silence before prompt
+                            </label>
+                            <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                              {formatDurationSeconds(config.userOnlineDetectionSeconds)}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[config.userOnlineDetectionSeconds]}
+                            onValueChange={([value]) =>
+                              updateConfig("userOnlineDetectionSeconds", value)
+                            }
+                            min={5}
+                            max={60}
+                            step={5}
+                            className="w-full"
+                          />
+                          <p className="text-sm text-slate-500">
+                            Seconds of user silence after the bot finishes speaking.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* End of call */}
+                  <div className="space-y-8 pt-4 border-t border-slate-100">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      End of call
+                    </p>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <label className="text-base font-bold text-slate-900">
+                            Hangup on user silence
+                          </label>
+                          <p className="text-sm text-slate-500 mt-1">
+                            End the call if the user stays silent after the bot finishes speaking.
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                          {formatDurationSeconds(config.userSilenceHangupSeconds)}
+                        </span>
+                      </div>
+                      <Slider
+                        value={[config.userSilenceHangupSeconds]}
+                        onValueChange={([value]) =>
+                          updateConfig("userSilenceHangupSeconds", value)
+                        }
+                        min={0}
+                        max={120}
+                        step={5}
+                        className="w-full"
+                      />
+                      <p className="text-sm text-slate-500">
+                        Set to 0 to disable. Range: 0–120 seconds.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <label className="text-base font-bold text-slate-900">
+                            Total call timeout
+                          </label>
+                          <p className="text-sm text-slate-500 mt-1">
+                            Maximum duration of a call before it is ended automatically.
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                          {formatDurationSeconds(config.callTimeoutSeconds)}
+                        </span>
+                      </div>
+                      <Slider
+                        value={[config.callTimeoutSeconds]}
+                        onValueChange={([value]) =>
+                          updateConfig("callTimeoutSeconds", value)
+                        }
+                        min={60}
+                        max={3600}
+                        step={30}
+                        className="w-full"
+                      />
+                      <p className="text-sm text-slate-500">
+                        Range: 1 minute to 60 minutes.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Hold messages
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      Played while waiting for a Kenpath LLM response. Leave empty to disable.
+                      Messages rotate on each delay.
+                    </p>
+
+                    <div className="space-y-3">
+                      {config.holdMessages.map((message, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            value={message}
+                            onChange={(e) => {
+                              const next = [...config.holdMessages]
+                              next[index] = e.target.value
+                              updateConfig("holdMessages", next)
+                            }}
+                            placeholder="e.g. Please wait, I am looking up the information"
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="shrink-0"
+                            onClick={() => {
+                              updateConfig(
+                                "holdMessages",
+                                config.holdMessages.filter((_, i) => i !== index)
+                              )
+                            }}
+                            aria-label="Remove hold message"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() =>
+                          updateConfig("holdMessages", [...config.holdMessages, ""])
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add message
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between gap-4">
+                        <label className="text-base font-bold text-slate-900">
+                          Hold message delay
+                        </label>
+                        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                          {config.holdMessageTimeoutSeconds.toFixed(1)}s
+                        </span>
+                      </div>
+                      <Slider
+                        value={[config.holdMessageTimeoutSeconds]}
+                        onValueChange={([value]) =>
+                          updateConfig("holdMessageTimeoutSeconds", value)
+                        }
+                        min={0.1}
+                        max={3}
+                        step={0.1}
+                        className="w-full"
+                      />
+                      <p className="text-sm text-slate-500">
+                        Seconds to wait for the LLM before playing the next hold message.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleNextStep}
+                  disabled={!canProceed()}
+                  className="mt-8 h-11 px-6 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium gap-2 disabled:bg-slate-200 disabled:text-slate-400 transition-all"
+                >
+                  {getNextStepLabel()}
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {/* Step 6: Review */}
+            {createStep === 6 && (
               <div className="bg-white rounded-xl border border-slate-200 p-8">
                 <h2 className="text-xl font-bold text-slate-900 mb-1">Review Configuration</h2>
                 <p className="text-slate-500 mb-8">Review your agent settings before creating.</p>
@@ -1906,6 +2247,14 @@ export default function AssistantsPage() {
                       </p>
                       <p className="text-sm text-slate-600 mb-1">
                         <span className="font-semibold">Welcome:</span> {config.greetingMessage || "—"}
+                      </p>
+                      <p className="text-sm text-slate-600 mb-1">
+                        <span className="font-semibold">Ignore speech during welcome:</span>{" "}
+                        {config.greetingMessage?.trim()
+                          ? config.ignoreUserSpeechBeforeGreeting
+                            ? "Yes"
+                            : "No"
+                          : "—"}
                       </p>
                       <p className="text-sm text-slate-600 line-clamp-2">
                         <span className="font-semibold">Prompt:</span> {config.systemPrompt || "—"}
@@ -1973,6 +2322,44 @@ export default function AssistantsPage() {
                       </p>
                     </div>
                     <button onClick={() => setCreateStep(4)} className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                      Edit
+                    </button>
+                  </div>
+
+                  {/* Call Management */}
+                  <div className="flex items-start justify-between p-4 border-b border-slate-200 hover:bg-slate-100/50 transition-colors">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 mb-2">Call Management</p>
+                      <p className="text-sm text-slate-600 mb-1">
+                        <span className="font-semibold">Words before interrupt:</span> {config.interruptionMinWords}
+                      </p>
+                      <p className="text-sm text-slate-600 mb-1">
+                        <span className="font-semibold">User online detection:</span>{" "}
+                        {config.userOnlineDetectionEnabled &&
+                        config.userOnlineDetectionMessage.trim()
+                          ? `Enabled (${formatDurationSeconds(config.userOnlineDetectionSeconds)})`
+                          : "Disabled"}
+                      </p>
+                      <p className="text-sm text-slate-600 mb-1">
+                        <span className="font-semibold">Silence hangup:</span>{" "}
+                        {formatDurationSeconds(config.userSilenceHangupSeconds)}
+                      </p>
+                      <p className="text-sm text-slate-600 mb-1">
+                        <span className="font-semibold">Call timeout:</span>{" "}
+                        {formatDurationSeconds(config.callTimeoutSeconds)}
+                      </p>
+                      <p className="text-sm text-slate-600 mb-1">
+                        <span className="font-semibold">Hold messages:</span>{" "}
+                        {config.holdMessages.map((m) => m.trim()).filter(Boolean).length > 0
+                          ? `${config.holdMessages.map((m) => m.trim()).filter(Boolean).length} message(s)`
+                          : "Disabled"}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        <span className="font-semibold">Hold message delay:</span>{" "}
+                        {config.holdMessageTimeoutSeconds.toFixed(1)}s
+                      </p>
+                    </div>
+                    <button onClick={() => setCreateStep(5)} className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors">
                       Edit
                     </button>
                   </div>

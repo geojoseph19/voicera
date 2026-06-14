@@ -23,26 +23,6 @@ import uuid
 import os
 
 
-# Hold messages and lang codes per language
-KENPATH_HINDI_HOLD_MESSAGES = [
-    "कृपया रुकिए, मैं जानकारी खोज रही हूँ",
-    "एक क्षण रुकिए, मैं जांच कर रही हूँ",
-    "कृपया प्रतीक्षा करें, मैं उत्तर खोज रही हूँ",
-    "थोड़ा समय दें, मैं जानकारी प्राप्त कर रही हूँ",
-]
-KENPATH_MARATHI_HOLD_MESSAGES = [
-    "कृपया थांबा, मी माहिती शोधत आहे",
-    "एक क्षण थांबा, मी तपासत आहे",
-    "कृपया प्रतीक्षा करा, मी उत्तर शोधत आहे",
-    "थोडा वेळ द्या, मी माहिती मिळवत आहे",
-]
-KENPATH_BHILI_HOLD_MESSAGES = [
-    "जाराक ऊबिरा, आय माहिती होदी रियोहं",
-    "एकूच घेडी ऊबिरा, आय तपासी रियोहं",
-    "जाराक वाट वेरा, आय उत्तर होदी दिहुव",
-    "बेन घेडी, आय माहिती मिलवुहू",
-]
-
 DEFAULT_VISTAAR_PROD_URL = "https://voice-prod.mahapocra.gov.in"
 DEFAULT_VISTAAR_DEV_URL = "https://vistaar-dev.mahapocra.gov.in"
 
@@ -72,10 +52,12 @@ class KenpathLLM(OpenAILLMService):
         vistaar_session_id: Optional[str] = None,
         language: Optional[str] = None,
         vistaar_environment: Optional[str] = None,
+        hold_messages: Optional[list[str]] = None,
+        response_timeout: float = 0.3,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.response_timeout = 0.3  # seconds
+        self.response_timeout = max(0.05, float(response_timeout))
         self._vistaar_session_id = vistaar_session_id
         self._bhashini_fast_turn = False
 
@@ -98,29 +80,29 @@ class KenpathLLM(OpenAILLMService):
         lang_lower = (language or "").strip().lower()
         if lang_lower == "bhb":
             self._use_voice_bhili = True
-            self.hold_messages = list(KENPATH_BHILI_HOLD_MESSAGES)
             self._source_lang = "bhb"
             self._target_lang = "bhb"
         else:
             self._use_voice_bhili = False
             if lang_lower == "hindi":
-                self.hold_messages = list(KENPATH_HINDI_HOLD_MESSAGES)
                 self._source_lang = "hi"
                 self._target_lang = "hi"
             else:
-                self.hold_messages = list(KENPATH_MARATHI_HOLD_MESSAGES)
                 self._source_lang = "mr"
                 self._target_lang = "mr"
 
+        self.hold_messages = [
+            str(msg).strip() for msg in (hold_messages or []) if str(msg).strip()
+        ]
         self.hold_message_index = 0
 
         if self._use_voice_bhili:
             logger.info(
-                f"🤖 KenpathLLM initialized | Voice Bhili | timeout={self.response_timeout}s | url={self._voice_bhili_url}"
+                f"🤖 KenpathLLM initialized | Voice Bhili | timeout={self.response_timeout}s | hold_messages={len(self.hold_messages)} | url={self._voice_bhili_url}"
             )
         else:
             logger.info(
-                f"🤖 KenpathLLM initialized | env={self._vistaar_environment} | timeout={self.response_timeout}s | url={self._base_url} | lang={self._source_lang}"
+                f"🤖 KenpathLLM initialized | env={self._vistaar_environment} | timeout={self.response_timeout}s | hold_messages={len(self.hold_messages)} | url={self._base_url} | lang={self._source_lang}"
             )
         if self._vistaar_session_id:
             logger.info(f"📞 Vistaar session ID for this call: {self._vistaar_session_id}")
@@ -217,8 +199,9 @@ class KenpathLLM(OpenAILLMService):
                 logger.info(f"⏳ Timeout after {elapsed:.2f}s - playing: '{hold_msg}'")
                 await self.push_frame(TTSSpeakFrame(hold_msg))
 
-        # Start the timer task
-        timer_task = asyncio.create_task(hold_message_timer())
+        timer_task = None
+        if self.hold_messages:
+            timer_task = asyncio.create_task(hold_message_timer())
 
         await self.start_ttfb_metrics()
 
@@ -251,7 +234,7 @@ class KenpathLLM(OpenAILLMService):
             raise
 
         finally:
-            if not timer_task.done():
+            if timer_task is not None and not timer_task.done():
                 timer_task.cancel()
                 try:
                     await timer_task

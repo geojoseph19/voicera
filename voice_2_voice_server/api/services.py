@@ -107,6 +107,8 @@ def create_llm_service(
     vistaar_session_id: Optional[str] = None,
     language: Optional[str] = None,
     org_id: Optional[str] = None,
+    hold_messages: Optional[list[str]] = None,
+    hold_message_timeout_seconds: float = 0.3,
 ) -> Any:
     """Create an LLM service based on configuration.
 
@@ -172,6 +174,8 @@ def create_llm_service(
             vistaar_session_id=vistaar_session_id,
             language=language,
             vistaar_environment=vistaar_env,
+            hold_messages=hold_messages or [],
+            response_timeout=hold_message_timeout_seconds,
         )
     elif provider_normalized in ("Anthropic", "anthropic"):
         if not org_id:

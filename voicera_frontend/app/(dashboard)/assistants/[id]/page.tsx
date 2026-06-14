@@ -27,6 +27,9 @@ import {
   Settings,
   Languages,
   Check,
+  Timer,
+  Plus,
+  Trash2,
 } from "lucide-react"
 import {
   Dialog,
@@ -190,8 +193,20 @@ const editWizardSteps = [
   { id: 1, title: "Agent", subtitle: "Name & Prompt", icon: FileText },
   { id: 2, title: "LLM", subtitle: "Model Config", icon: Settings },
   { id: 3, title: "Audio", subtitle: "STT & TTS", icon: Volume2 },
-  { id: 4, title: "Telephony", subtitle: "Select Provider", icon: Phone },
+  { id: 4, title: "Telephony", subtitle: "Provider Info", icon: Phone },
+  { id: 5, title: "Call Management", subtitle: "Timeouts & Silence", icon: Timer },
 ]
+
+const formatDurationSeconds = (seconds: number) => {
+  if (seconds <= 0) return "Disabled"
+  if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} min`
+  if (seconds >= 60) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins} min`
+  }
+  return `${seconds}s`
+}
 
 export default function AgentDetailPage() {
   const router = useRouter()
@@ -215,6 +230,15 @@ export default function AgentDetailPage() {
   // Form state
   const [systemPrompt, setSystemPrompt] = useState("")
   const [greetingMessage, setGreetingMessage] = useState("")
+  const [ignoreUserSpeechBeforeGreeting, setIgnoreUserSpeechBeforeGreeting] = useState(true)
+  const [interruptionMinWords, setInterruptionMinWords] = useState(1)
+  const [userSilenceHangupSeconds, setUserSilenceHangupSeconds] = useState(0)
+  const [callTimeoutSeconds, setCallTimeoutSeconds] = useState(600)
+  const [holdMessages, setHoldMessages] = useState<string[]>([])
+  const [holdMessageTimeoutSeconds, setHoldMessageTimeoutSeconds] = useState(0.3)
+  const [userOnlineDetectionEnabled, setUserOnlineDetectionEnabled] = useState(false)
+  const [userOnlineDetectionMessage, setUserOnlineDetectionMessage] = useState("")
+  const [userOnlineDetectionSeconds, setUserOnlineDetectionSeconds] = useState(10)
   const [agentType, setAgentType] = useState("")
   const [language, setLanguage] = useState("")
   const [llmProvider, setLlmProvider] = useState("")
@@ -455,6 +479,61 @@ export default function AgentDetailPage() {
 
           setSystemPrompt(agentData.agent_config?.system_prompt || "")
           setGreetingMessage(agentData.agent_config?.greeting_message || "")
+          const loadedIgnoreBeforeGreeting =
+            (agentData.agent_config as any)?.ignore_user_speech_before_greeting !== false
+          const loadedInterruptionMinWords = Math.max(
+            1,
+            Number((agentData.agent_config as any)?.interruption_min_words) || 1
+          )
+          setIgnoreUserSpeechBeforeGreeting(loadedIgnoreBeforeGreeting)
+          setInterruptionMinWords(loadedInterruptionMinWords)
+          const legacyTimeoutMinutes = Number(
+            (agentData.agent_config as any)?.session_timeout_minutes
+          )
+          const loadedCallTimeoutSeconds = Math.max(
+            60,
+            Number((agentData.agent_config as any)?.call_timeout_seconds) ||
+              (Number.isFinite(legacyTimeoutMinutes) && legacyTimeoutMinutes > 0
+                ? legacyTimeoutMinutes * 60
+                : 600)
+          )
+          const loadedUserSilenceHangupSeconds = Math.max(
+            0,
+            Number((agentData.agent_config as any)?.user_silence_hangup_seconds) || 0
+          )
+          setUserSilenceHangupSeconds(loadedUserSilenceHangupSeconds)
+          setCallTimeoutSeconds(loadedCallTimeoutSeconds)
+          const loadedHoldMessages = Array.isArray(
+            (agentData.agent_config as any)?.hold_messages
+          )
+            ? (agentData.agent_config as any).hold_messages.map((m: unknown) =>
+                String(m ?? "")
+              )
+            : []
+          setHoldMessages(loadedHoldMessages)
+          const loadedHoldTimeout = Number(
+            (agentData.agent_config as any)?.hold_message_timeout_seconds
+          )
+          setHoldMessageTimeoutSeconds(
+            Number.isFinite(loadedHoldTimeout) && loadedHoldTimeout > 0
+              ? loadedHoldTimeout
+              : 0.3
+          )
+          setUserOnlineDetectionEnabled(
+            Boolean((agentData.agent_config as any)?.user_online_detection_enabled)
+          )
+          setUserOnlineDetectionMessage(
+            String((agentData.agent_config as any)?.user_online_detection_message || "")
+          )
+          const loadedUserOnlineDetectionSeconds = Number(
+            (agentData.agent_config as any)?.user_online_detection_seconds
+          )
+          setUserOnlineDetectionSeconds(
+            Number.isFinite(loadedUserOnlineDetectionSeconds) &&
+              loadedUserOnlineDetectionSeconds > 0
+              ? loadedUserOnlineDetectionSeconds
+              : 10
+          )
 
           // Load LLM settings - convert official name to internal ID
           const llmProviderName = agentData.agent_config?.llm_model?.name || ""
@@ -530,7 +609,46 @@ export default function AgentDetailPage() {
 
           if (agentData.agent_config && typeof agentData.agent_config === 'object') {
             try {
-              setOriginalConfig(JSON.parse(JSON.stringify(agentData.agent_config)))
+              const normalizedOriginal = JSON.parse(JSON.stringify(agentData.agent_config))
+              if (normalizedOriginal.ignore_user_speech_before_greeting === undefined) {
+                normalizedOriginal.ignore_user_speech_before_greeting = loadedIgnoreBeforeGreeting
+              }
+              if (normalizedOriginal.interruption_min_words === undefined) {
+                normalizedOriginal.interruption_min_words = loadedInterruptionMinWords
+              }
+              if (normalizedOriginal.user_silence_hangup_seconds === undefined) {
+                normalizedOriginal.user_silence_hangup_seconds = loadedUserSilenceHangupSeconds
+              }
+              if (normalizedOriginal.call_timeout_seconds === undefined) {
+                normalizedOriginal.call_timeout_seconds = loadedCallTimeoutSeconds
+              }
+              if (normalizedOriginal.hold_messages === undefined) {
+                normalizedOriginal.hold_messages = loadedHoldMessages
+              }
+              if (normalizedOriginal.hold_message_timeout_seconds === undefined) {
+                normalizedOriginal.hold_message_timeout_seconds =
+                  Number.isFinite(loadedHoldTimeout) && loadedHoldTimeout > 0
+                    ? loadedHoldTimeout
+                    : 0.3
+              }
+              if (normalizedOriginal.user_online_detection_enabled === undefined) {
+                normalizedOriginal.user_online_detection_enabled = Boolean(
+                  (agentData.agent_config as any)?.user_online_detection_enabled
+                )
+              }
+              if (normalizedOriginal.user_online_detection_message === undefined) {
+                normalizedOriginal.user_online_detection_message = String(
+                  (agentData.agent_config as any)?.user_online_detection_message || ""
+                )
+              }
+              if (normalizedOriginal.user_online_detection_seconds === undefined) {
+                normalizedOriginal.user_online_detection_seconds =
+                  Number.isFinite(loadedUserOnlineDetectionSeconds) &&
+                  loadedUserOnlineDetectionSeconds > 0
+                    ? loadedUserOnlineDetectionSeconds
+                    : 10
+              }
+              setOriginalConfig(normalizedOriginal)
             } catch (e) {
               console.error("Error parsing Agent configuration on load:", e)
             }
@@ -599,6 +717,15 @@ export default function AgentDetailPage() {
       language: languageName || "", // Include top-level language field
       system_prompt: systemPrompt || "",
       greeting_message: greetingMessage || "",
+      ignore_user_speech_before_greeting: ignoreUserSpeechBeforeGreeting,
+      interruption_min_words: interruptionMinWords,
+      user_silence_hangup_seconds: userSilenceHangupSeconds,
+      call_timeout_seconds: callTimeoutSeconds,
+      hold_messages: holdMessages.map((m) => m.trim()).filter(Boolean),
+      hold_message_timeout_seconds: holdMessageTimeoutSeconds,
+      user_online_detection_enabled: userOnlineDetectionEnabled,
+      user_online_detection_message: userOnlineDetectionMessage.trim(),
+      user_online_detection_seconds: userOnlineDetectionSeconds,
       knowledge_base_enabled: llmProvider === "openai" ? knowledgeEnabled : false,
       knowledge_document_ids:
         llmProvider === "openai" && knowledgeEnabled ? knowledgeDocumentIds : [],
@@ -652,7 +779,7 @@ export default function AgentDetailPage() {
     const hasAgentTypeChanged = agentType.trim() !== (agent.agent_type || "").trim()
     const hasChanged = hasConfigChanged || hasAgentTypeChanged
     setHasChanges(hasChanged)
-  }, [agentType, systemPrompt, greetingMessage, language, llmProvider, llmModel, kenpathEnvironment, knowledgeEnabled, knowledgeDocumentIds, knowledgeTopK, sttProvider, sttModel, ttsProvider, ttsModel, ttsVoice, speed, originalConfig, agent])
+  }, [agentType, systemPrompt, greetingMessage, ignoreUserSpeechBeforeGreeting, interruptionMinWords, userSilenceHangupSeconds, callTimeoutSeconds, holdMessages, holdMessageTimeoutSeconds, userOnlineDetectionEnabled, userOnlineDetectionMessage, userOnlineDetectionSeconds, language, llmProvider, llmModel, kenpathEnvironment, knowledgeEnabled, knowledgeDocumentIds, knowledgeTopK, sttProvider, sttModel, ttsProvider, ttsModel, ttsVoice, speed, originalConfig, agent])
 
   const handleSaveClick = () => {
     setShowConfirmModal(true)
@@ -685,6 +812,15 @@ export default function AgentDetailPage() {
           language: languageName, // Update the top-level language field
           system_prompt: systemPrompt,
           greeting_message: greetingMessage,
+          ignore_user_speech_before_greeting: ignoreUserSpeechBeforeGreeting,
+          interruption_min_words: interruptionMinWords,
+          user_silence_hangup_seconds: userSilenceHangupSeconds,
+          call_timeout_seconds: callTimeoutSeconds,
+          hold_messages: holdMessages.map((m) => m.trim()).filter(Boolean),
+          hold_message_timeout_seconds: holdMessageTimeoutSeconds,
+          user_online_detection_enabled: userOnlineDetectionEnabled,
+          user_online_detection_message: userOnlineDetectionMessage.trim(),
+          user_online_detection_seconds: userOnlineDetectionSeconds,
           knowledge_base_enabled: llmProvider === "openai" ? knowledgeEnabled : false,
           knowledge_document_ids:
             llmProvider === "openai" && knowledgeEnabled ? knowledgeDocumentIds : [],
@@ -1397,6 +1533,33 @@ export default function AgentDetailPage() {
                   <p className="text-xs text-slate-500 mt-1">
                     This will be the initial message from the agent. You can use variables here using {"{variable_name}"}
                   </p>
+                  <div className="flex items-center justify-between gap-4 pt-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Ignore user speech before welcome
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {greetingMessage.trim()
+                          ? "Block barge-in while the welcome message is playing."
+                          : "Add a welcome message to enable this."}
+                      </p>
+                    </div>
+                    <label
+                      className={`relative inline-flex shrink-0 items-center ${
+                        greetingMessage.trim() ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={ignoreUserSpeechBeforeGreeting}
+                        disabled={!greetingMessage.trim()}
+                        onChange={() => setIgnoreUserSpeechBeforeGreeting((v) => !v)}
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer-checked:bg-emerald-600 transition-colors" />
+                      <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
+                    </label>
+                  </div>
                 </div>
 
                 <div>
@@ -1456,6 +1619,227 @@ export default function AgentDetailPage() {
                     <div className="text-base font-bold text-slate-900">
                       {agent.phone_number ? agent.phone_number : <span className="italic text-slate-400">Not linked</span>}
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className={`bg-white rounded-xl border border-slate-200 p-6 sm:p-8 ${editStep === 5 ? "" : "hidden"}`}>
+              <h2 className="text-lg font-semibold text-slate-900 mb-1 flex items-center gap-2">
+                <Timer size={20} className="text-blue-500" />
+                Call Management
+              </h2>
+              <p className="text-sm text-slate-500 mb-8">
+                Control interruptions, welcome behavior, silence handling, and call duration.
+              </p>
+
+              <div className="space-y-10">
+                <div className="space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Interruption
+                  </p>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <label className="text-sm font-semibold text-slate-800">
+                        Words before interrupting
+                      </label>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Minimum words the caller must speak before the bot stops its audio.
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                      {interruptionMinWords} {interruptionMinWords === 1 ? "word" : "words"}
+                    </span>
+                  </div>
+                  <Slider
+                    value={[interruptionMinWords]}
+                    onValueChange={([value]) => setInterruptionMinWords(value)}
+                    min={1}
+                    max={10}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    User online detection
+                  </p>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Enable user online detection
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Ask whether the caller is still on the line after they stay silent.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex shrink-0 items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={userOnlineDetectionEnabled}
+                        onChange={() => setUserOnlineDetectionEnabled((v) => !v)}
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer-checked:bg-emerald-600 transition-colors" />
+                      <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
+                    </label>
+                  </div>
+
+                  {userOnlineDetectionEnabled && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-800">
+                          Detection message
+                        </label>
+                        <Textarea
+                          value={userOnlineDetectionMessage}
+                          onChange={(e) => setUserOnlineDetectionMessage(e.target.value)}
+                          placeholder="e.g. Hello, are you still on the call?"
+                          rows={2}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <label className="text-sm font-semibold text-slate-800">
+                            Silence before prompt
+                          </label>
+                          <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                            {formatDurationSeconds(userOnlineDetectionSeconds)}
+                          </span>
+                        </div>
+                        <Slider
+                          value={[userOnlineDetectionSeconds]}
+                          onValueChange={([value]) => setUserOnlineDetectionSeconds(value)}
+                          min={5}
+                          max={60}
+                          step={5}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-slate-500">
+                          Seconds of user silence after the bot finishes speaking.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-8 pt-4 border-t border-slate-100">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    End of call
+                  </p>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <label className="text-sm font-semibold text-slate-800">
+                        Hangup on user silence
+                      </label>
+                      <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                        {formatDurationSeconds(userSilenceHangupSeconds)}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[userSilenceHangupSeconds]}
+                      onValueChange={([value]) => setUserSilenceHangupSeconds(value)}
+                      min={0}
+                      max={120}
+                      step={5}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-slate-500">
+                      End the call if the user stays silent after the bot finishes speaking. Set to 0 to disable.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <label className="text-sm font-semibold text-slate-800">
+                        Total call timeout
+                      </label>
+                      <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                        {formatDurationSeconds(callTimeoutSeconds)}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[callTimeoutSeconds]}
+                      onValueChange={([value]) => setCallTimeoutSeconds(value)}
+                      min={60}
+                      max={3600}
+                      step={30}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Maximum call duration before the call is ended automatically.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Hold messages
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Played while waiting for a Kenpath LLM response. Leave empty to disable.
+                    Messages rotate on each delay.
+                  </p>
+
+                  <div className="space-y-3">
+                    {holdMessages.map((message, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <Input
+                          value={message}
+                          onChange={(e) => {
+                            const next = [...holdMessages]
+                            next[index] = e.target.value
+                            setHoldMessages(next)
+                          }}
+                          placeholder="e.g. Please wait, I am looking up the information"
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={() =>
+                            setHoldMessages(holdMessages.filter((_, i) => i !== index))
+                          }
+                          aria-label="Remove hold message"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => setHoldMessages([...holdMessages, ""])}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add message
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between gap-4">
+                      <label className="text-sm font-semibold text-slate-800">
+                        Hold message delay
+                      </label>
+                      <span className="text-sm font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                        {holdMessageTimeoutSeconds.toFixed(1)}s
+                      </span>
+                    </div>
+                    <Slider
+                      value={[holdMessageTimeoutSeconds]}
+                      onValueChange={([value]) => setHoldMessageTimeoutSeconds(value)}
+                      min={0.1}
+                      max={3}
+                      step={0.1}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Seconds to wait for the LLM before playing the next hold message.
+                    </p>
                   </div>
                 </div>
               </div>
