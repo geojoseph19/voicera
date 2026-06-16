@@ -36,7 +36,7 @@ from config import get_llm_model
 from config.stt_mappings import STT_LANGUAGE_MAP
 from config.tts_mappings import TTS_LANGUAGE_MAP
 
-from .backend_utils import fetch_integration_key
+from utils.backend_utils import fetch_integration_key
 
 
 class ServiceCreationError(Exception):
@@ -107,6 +107,8 @@ def create_llm_service(
     vistaar_session_id: Optional[str] = None,
     language: Optional[str] = None,
     org_id: Optional[str] = None,
+    hold_messages: Optional[list[str]] = None,
+    hold_message_timeout_seconds: float = 0.3,
 ) -> Any:
     """Create an LLM service based on configuration.
 
@@ -172,6 +174,8 @@ def create_llm_service(
             vistaar_session_id=vistaar_session_id,
             language=language,
             vistaar_environment=vistaar_env,
+            hold_messages=hold_messages or [],
+            response_timeout=hold_message_timeout_seconds,
         )
     elif provider_normalized in ("Anthropic", "anthropic"):
         if not org_id:
@@ -406,19 +410,22 @@ def create_stt_service(
             raise ServiceCreationError(f"Unknown ai4bharat STT model: {model}. Expected 'indic-conformer-stt'")
     
     elif provider == "Bhashini":
-        if org_id:
+        # WebSocket streaming always uses the grpc service ID; agent/UI model names
+        # (e.g. conformer-multilingual-asr) are REST-only and cause INVALID_SERVICE_TASK.
+        api_key = (
+            os.getenv("BHASHINI_API_KEY")
+
+        )
+        if not api_key and org_id:
             api_key = fetch_integration_key(org_id, "Bhashini")
-            if not api_key:
-                raise ServiceCreationError(
-                    "Bhashini API key must be configured in Integrations for this organization."
-                )
-        else:
-            api_key = os.getenv("BHASHINI_API_KEY")
         return BhashiniSTTService(
             api_key=api_key,
             language=STT_LANGUAGE_MAP[provider][language],
-            service_id=args.get("model", "bhashini/ai4bharat/conformer-multilingual-asr"),
+            service_id="bhashini/ai4b/indic-conformer/grpc",
             sample_rate=sample_rate,
+            input_sample_rate=sample_rate,
+            suppress_vad_frames=(vad_analyzer is not None),
+            
         )
     
     elif provider == "Sarvam":

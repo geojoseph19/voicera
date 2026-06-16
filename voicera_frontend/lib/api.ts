@@ -365,6 +365,15 @@ export interface Agent {
 export interface AgentConfig {
   system_prompt: string
   greeting_message: string
+  ignore_user_speech_before_greeting?: boolean
+  interruption_min_words?: number
+  user_silence_hangup_seconds?: number
+  call_timeout_seconds?: number
+  hold_messages?: string[]
+  hold_message_timeout_seconds?: number
+  user_online_detection_enabled?: boolean
+  user_online_detection_message?: string
+  user_online_detection_seconds?: number
   session_timeout_minutes: number
   language: string
   knowledge_base_enabled?: boolean

@@ -1,6 +1,5 @@
 """Voice bot pipeline implementation using Pipecat."""
 
-import os
 import json
 import time
 import traceback
@@ -8,7 +7,7 @@ import traceback
 from loguru import logger
 from dotenv import load_dotenv
 
-from pipecat.frames.frames import TTSSpeakFrame, TTSStartedFrame
+from pipecat.frames.frames import TTSSpeakFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -17,7 +16,6 @@ from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from pipecat.processors.transcript_processor import TranscriptProcessor
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
-from pipecat.utils.text.base_text_aggregator import BaseTextAggregator, Aggregation, AggregationType
 from typing import Any, Optional, Callable, Awaitable
 from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketParams,
@@ -26,19 +24,35 @@ from pipecat.transports.websocket.fastapi import (
 from pipecat.runner.utils import parse_telephony_websocket
 from storage.minio_client import MinIOStorage
 from serializer.vobiz_serializer import VobizFrameSerializer
-from serializer.ubona_serializer import UbonaFrameSerializer
 from .services import (
     create_llm_service,
     create_stt_service,
     create_tts_service,
     ServiceCreationError,
 )
-# Import the new filter
-from services.audio.greeting_interruption_filter import GreetingInterruptionFilter
-from services.audio.marathi_idle_prompt_filter import MarathiIdlePromptFilter
+from utils.audio.greeting_interruption_filter import create_greeting_filters
+from utils.audio.user_online_detection_filter import UserOnlineDetectionFilter
+from utils.call_goodbye import GoodbyeHangupProcessor
+from utils.call_management import UserSilenceHangupProcessor
 from services.vllm_qwen import ensure_no_think_suffix
-from .call_recording_utils import submit_call_recording
-from services.metrics import CallMetricsObserver
+from utils.bot_utils import (
+    BargeInInterruptionProcessor,
+    FastPunctuationAggregator,
+    get_call_timeout_seconds,
+    get_hold_message_timeout_seconds,
+    get_hold_messages,
+    get_ignore_user_speech_before_greeting,
+    get_interruption_min_words,
+    get_sample_rate,
+    get_user_online_detection_enabled,
+    get_user_online_detection_message,
+    get_user_online_detection_seconds,
+    get_user_silence_hangup_seconds,
+    patch_immediate_first_chunk,
+)
+from utils.call_recording_utils import submit_call_recording
+from utils.vobiz_recording import start_vobiz_call_recording, wait_and_download_vobiz_recording
+from utils.metrics import CallMetricsObserver
 
 
 
@@ -67,78 +81,16 @@ try:
 except Exception as e:
     logger.warning(f"Failed to patch SOXRStreamAudioResampler: {e}")
 
-
-
-def _get_sample_rate() -> int:
-    """Get the audio sample rate from environment."""
-    return int(os.getenv("SAMPLE_RATE", "8000"))
-
-
-class FastPunctuationAggregator(BaseTextAggregator):
-    """Fast aggregator that sends text immediately on punctuation - no lookahead/NLTK."""
-    
-    def __init__(self):
-        self._text = ""
-    
-    @property
-    def text(self):
-        return Aggregation(text=self._text.strip(), type=AggregationType.SENTENCE)
-    
-    async def aggregate(self, text: str):
-        for char in text:
-            self._text += char
-            if char in '.!?,':
-                if self._text.strip():
-                    yield Aggregation(self._text.strip(), AggregationType.SENTENCE)
-                    self._text = ""
-    
-    async def flush(self):
-        if self._text.strip():
-            result = self._text.strip()
-            self._text = ""
-            return Aggregation(result, AggregationType.SENTENCE)
-        return None
-    
-    async def handle_interruption(self):
-        self._text = ""
-    
-    async def reset(self):
-        self._text = ""
-
-
-def patch_immediate_first_chunk(transport):
-    """Patch transport to send first audio chunk immediately with zero delay."""
-    output = transport.output()
-    output._send_interval = 0
-    output._first_chunk_sent = False
-    
-    _orig_write = output.write_audio_frame
-    async def _write_immediate(frame):
-        if not output._first_chunk_sent:
-            output._first_chunk_sent = True
-            output._next_send_time = time.monotonic() - 0.001
-            logger.info(f"🚀 Sending first chunk immediately: {len(frame.audio)} bytes (bypassing queue)")
-        await _orig_write(frame)
-    output.write_audio_frame = _write_immediate
-    
-    _orig_process = output.process_frame
-    async def _reset_on_tts(frame, direction):
-        if isinstance(frame, TTSStartedFrame):
-            output._first_chunk_sent = False
-            logger.debug(f"🔄 Reset first_chunk_sent flag for new TTS response")
-        await _orig_process(frame, direction)
-    output.process_frame = _reset_on_tts
-
-
 async def run_bot(
     transport: FastAPIWebsocketTransport,
     agent_config: dict,
-    audiobuffer: AudioBufferProcessor,
     transcript: TranscriptProcessor,
+    audiobuffer: Optional[AudioBufferProcessor] = None,
     handle_sigint: bool = False,
     vad_analyzer: Any = None,
     vistaar_session_id: Optional[str] = None,
     sample_rate: Optional[int] = None,
+    on_client_connected_hook: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> Optional[CallMetricsObserver]:
     """Run the voice bot pipeline with the given configuration.
     
@@ -150,7 +102,7 @@ async def run_bot(
         handle_sigint: Whether to handle SIGINT for graceful shutdown
     """
     start_time = time.monotonic()
-    sample_rate = sample_rate or _get_sample_rate()
+    sample_rate = sample_rate or get_sample_rate()
     
     logger.debug(f"Agent config: {json.dumps(agent_config, indent=2, default=str)}")
     
@@ -182,9 +134,19 @@ async def run_bot(
             vistaar_session_id=vistaar_session_id,
             language=agent_config.get("language"),
             org_id=org_id,
+            hold_messages=get_hold_messages(agent_config),
+            hold_message_timeout_seconds=get_hold_message_timeout_seconds(
+                agent_config
+            ),
         )
         stt = create_stt_service(stt_config, sample_rate, vad_analyzer=vad_analyzer, org_id=org_id)
         tts = create_tts_service(tts_config, sample_rate, org_id=org_id)
+
+        stt_provider_name = str(stt_config.get("name") or "").strip().lower()
+        if stt_provider_name == "bhashini" and llm_provider_name == "kenpath":
+            enable_fast_turn = getattr(llm, "enable_bhashini_fast_turn", None)
+            if callable(enable_fast_turn):
+                enable_fast_turn()
         
         # Use fast aggregator (no lookahead/NLTK) for lower latency
         tts._aggregate_sentences = True
@@ -202,33 +164,80 @@ async def run_bot(
         else:
             context_aggregator = llm.create_context_aggregator(context)
         
-        greeting_filter = GreetingInterruptionFilter()
-        language_normalized = str(language or "").strip().lower()
-        marathi_idle_prompt_enabled = (
-            language_normalized == "marathi"
-            or language_normalized == "mr"
-            or language_normalized.startswith("mr-")
+        _, greeting_blocker, greeting_completer = create_greeting_filters()
+        ignore_user_speech_before_greeting = get_ignore_user_speech_before_greeting(agent_config)
+        interruption_min_words = get_interruption_min_words(agent_config)
+        logger.info(
+            "Interruption settings | ignore_before_greeting={} min_words={}",
+            ignore_user_speech_before_greeting,
+            interruption_min_words,
         )
-        marathi_idle_prompt_filter = (
-            MarathiIdlePromptFilter(timeout_secs=10.0) if marathi_idle_prompt_enabled else None
+        task_ref: dict[str, Optional[PipelineTask]] = {"task": None}
+
+        async def schedule_call_end() -> None:
+            pipeline_task = task_ref["task"]
+            if pipeline_task is not None:
+                await pipeline_task.stop_when_done()
+
+        goodbye_processor = GoodbyeHangupProcessor(schedule_call_end)
+
+        user_online_detection_message = get_user_online_detection_message(agent_config)
+        user_online_detection_enabled = (
+            get_user_online_detection_enabled(agent_config)
+            and bool(user_online_detection_message)
         )
-        if marathi_idle_prompt_enabled:
-            logger.info("Marathi idle prompt enabled (10s silence after bot speech)")
+        user_online_detection_seconds = get_user_online_detection_seconds(agent_config)
+        user_online_detection_filter = (
+            UserOnlineDetectionFilter(
+                prompt_text=user_online_detection_message,
+                timeout_secs=user_online_detection_seconds,
+                suppress_idle_when=goodbye_processor.should_suppress_idle,
+            )
+            if user_online_detection_enabled
+            else None
+        )
+        if user_online_detection_enabled:
+            logger.info(
+                "User online detection enabled ({}s silence after bot speech)",
+                user_online_detection_seconds,
+            )
+
+        user_silence_hangup_secs = get_user_silence_hangup_seconds(agent_config)
+        user_silence_hangup_filter = (
+            UserSilenceHangupProcessor(
+                timeout_secs=float(user_silence_hangup_secs),
+                schedule_call_end=schedule_call_end,
+                suppress_idle_when=goodbye_processor.should_suppress_idle,
+            )
+            if user_silence_hangup_secs > 0
+            else None
+        )
+        if user_silence_hangup_filter:
+            logger.info(
+                "User silence hangup enabled ({}s after bot speech)",
+                user_silence_hangup_secs,
+            )
 
         pipeline_processors = [
             transport.input(),
-            greeting_filter,
             stt,
+            greeting_blocker,
+            BargeInInterruptionProcessor(min_words=interruption_min_words),
             transcript.user(),
             context_aggregator.user(),
             llm,
+            goodbye_processor,
             tts,
+            greeting_completer,
         ]
-        if marathi_idle_prompt_filter:
-            pipeline_processors.append(marathi_idle_prompt_filter)
+        if user_online_detection_filter:
+            pipeline_processors.append(user_online_detection_filter)
+        if user_silence_hangup_filter:
+            pipeline_processors.append(user_silence_hangup_filter)
+        pipeline_processors.append(transcript.assistant())
+        if audiobuffer is not None:
+            pipeline_processors.append(audiobuffer)
         pipeline_processors.extend([
-            transcript.assistant(),
-            audiobuffer,
             transport.output(),
             context_aggregator.assistant(),
         ])
@@ -246,15 +255,20 @@ async def run_bot(
             params=PipelineParams(allow_interruptions=True, enable_metrics=True),
             observers=[metrics_observer],
         )
+        task_ref["task"] = task
 
         @transport.event_handler("on_client_connected")
         async def on_client_connected(transport, client):
             logger.info("Client connected")
-            await audiobuffer.start_recording()
+            if audiobuffer is not None:
+                await audiobuffer.start_recording()
+            if on_client_connected_hook is not None:
+                await on_client_connected_hook()
             greeting = agent_config.get("greeting_message", '')
             if len(greeting.strip()) > 1:
                 logger.info(f"greeting: {greeting}")
-                greeting_filter.start_greeting()
+                if ignore_user_speech_before_greeting:
+                    greeting_blocker.start_greeting()
                 await task.queue_frames([TTSSpeakFrame(greeting)])
         
         @transport.event_handler("on_client_disconnected")
@@ -290,8 +304,8 @@ async def bot(
     sample_rate: Optional[int] = None,
 ) -> str:
     """Main bot entry point - sets up transport and runs the pipeline."""
-    sample_rate = sample_rate or _get_sample_rate()
-    session_timeout = agent_config.get("session_timeout_minutes", 10) * 60
+    sample_rate = sample_rate or get_sample_rate()
+    session_timeout = get_call_timeout_seconds(agent_config)
 
     import time
     original_send = websocket_client.send_text
@@ -310,12 +324,11 @@ async def bot(
 
     normalized_provider = (provider or "vobiz").strip().lower()
     if normalized_provider == "plivo":
-        # Pipecat: parse_telephony_websocket reads Plivo start messages (streamId, callId)
         await websocket_client.accept()
         _, telephony_call_data = await parse_telephony_websocket(websocket_client)
         stream_sid = stream_sid or telephony_call_data.get("stream_id") or "unknown"
         call_sid = call_sid or telephony_call_data.get("call_id") or "unknown"
-        # Plivo media stream matches Vobiz (L16 @ 16k); native PlivoFrameSerializer is mulaw-only
+     
         serializer = VobizFrameSerializer(
             stream_sid=stream_sid,
             call_sid=call_sid,
@@ -338,16 +351,35 @@ async def bot(
         )
     
     
-    vad_analyzer = SileroVADAnalyzer(
-        sample_rate=sample_rate,
-        params=VADParams(
-            stop_secs=0.4,
-            min_volume=0.4,
-            confidence=0.3,
-            start_secs=0.1,
+    stt_provider_name = str((agent_config.get("stt_model") or {}).get("name") or "").strip().lower()
+
+    if stt_provider_name == "bhashini":
+       
+        vad_analyzer = SileroVADAnalyzer(
+            sample_rate=sample_rate,
+            params=VADParams(
+                stop_secs=0.2,
+                min_volume=0.6,    # ignore very quiet background hiss
+                confidence=0.7,    # coughs/barks typically score < 0.4, real speech > 0.7
+                start_secs=0.2,    # require 200 ms of sustained speech onset
+            ),
         )
-    )
-    vad_analyzer._smoothing_factor = 0.1  # Faster volume change response
+        vad_analyzer._smoothing_factor = 0.15
+        logger.info(
+            "Bhashini: using SileroVAD on transport for barge-in "
+            "(confidence=0.7, min_volume=0.6) — coughs/barks will be ignored"
+        )
+    else:
+        vad_analyzer = SileroVADAnalyzer(
+            sample_rate=sample_rate,
+            params=VADParams(
+                stop_secs=0.4,
+                min_volume=0.4,
+                confidence=0.3,
+                start_secs=0.1,
+            )
+        )
+        vad_analyzer._smoothing_factor = 0.1  # Faster volume change response
     import pipecat.transports.base_input
     pipecat.transports.base_input.AUDIO_INPUT_TIMEOUT_SECS = 0.1
 
@@ -371,28 +403,42 @@ async def bot(
     # Optimized first audio chunk sending
     patch_immediate_first_chunk(transport)
     
-    # Create audio buffer processor
-    audiobuffer = AudioBufferProcessor()
-    
+    use_vobiz_native_recording = normalized_provider == "vobiz"
+    audiobuffer = None if use_vobiz_native_recording else AudioBufferProcessor()
+
     # Accumulate audio chunks and transcript lines in memory (deferred storage)
-    # Using a dict to avoid nonlocal issues
     call_data = {
         "audio_chunks": [],
         "audio_sample_rate": None,
         "audio_num_channels": None,
-        "transcript_lines": []
+        "transcript_lines": [],
+        "vobiz_recording_id": None,
     }
-    
-    @audiobuffer.event_handler("on_audio_data")
-    async def on_audio_data(buffer, audio, sample_rate, num_channels):
-        # Accumulate audio chunks in memory (no I/O during call)
-        call_data["audio_chunks"].append(audio)
-        # Store sample rate and channels from first chunk (should be constant)
-        if call_data["audio_sample_rate"] is None:
-            call_data["audio_sample_rate"] = sample_rate
-            call_data["audio_num_channels"] = num_channels
-        total_bytes = sum(len(c) for c in call_data["audio_chunks"])
-        logger.debug(f"Accumulated audio chunk: {len(audio)} bytes (total: {total_bytes} bytes)")
+
+    if audiobuffer is not None:
+        @audiobuffer.event_handler("on_audio_data")
+        async def on_audio_data(buffer, audio, sample_rate, num_channels):
+            call_data["audio_chunks"].append(audio)
+            if call_data["audio_sample_rate"] is None:
+                call_data["audio_sample_rate"] = sample_rate
+                call_data["audio_num_channels"] = num_channels
+            total_bytes = sum(len(c) for c in call_data["audio_chunks"])
+            logger.debug(f"Accumulated audio chunk: {len(audio)} bytes (total: {total_bytes} bytes)")
+
+    on_client_connected_hook = None
+    if use_vobiz_native_recording:
+        org_id = agent_config.get("org_id")
+
+        async def start_vobiz_recording():
+            if not org_id:
+                logger.warning(f"No org_id for Vobiz recording on call {call_sid}")
+                return
+            recording_id = await start_vobiz_call_recording(
+                call_sid, org_id, session_timeout
+            )
+            call_data["vobiz_recording_id"] = recording_id
+
+        on_client_connected_hook = start_vobiz_recording
     
     # Create transcript processor
     transcript = TranscriptProcessor()
@@ -416,25 +462,45 @@ async def bot(
         metrics_observer = await run_bot(
             transport,
             agent_config,
-            audiobuffer,
             transcript,
+            audiobuffer=audiobuffer,
             handle_sigint=False,
             vad_analyzer=vad_analyzer,
             vistaar_session_id=call_sid,
             sample_rate=sample_rate,
+            on_client_connected_hook=on_client_connected_hook,
         )
     finally:
         logger.info(f"Saving call data for {call_sid}...")
-        if call_data["audio_chunks"] and call_data["audio_sample_rate"] and call_data["audio_num_channels"]:
+        recording_url = None
+        if use_vobiz_native_recording:
+            recording_id = call_data.get("vobiz_recording_id")
+            org_id = agent_config.get("org_id")
+            if recording_id and org_id:
+                try:
+                    audio_bytes = await wait_and_download_vobiz_recording(
+                        recording_id, org_id
+                    )
+                    if audio_bytes:
+                        await storage.save_recording_bytes(call_sid, audio_bytes, "mp3")
+                        recording_url = f"minio://recordings/{call_sid}.mp3"
+                    else:
+                        logger.warning(f"Vobiz recording download failed for {call_sid}")
+                except Exception as e:
+                    logger.error(f"Failed to ingest Vobiz recording for {call_sid}: {e}")
+            else:
+                logger.warning(f"No Vobiz recording_id to fetch for {call_sid}")
+        elif call_data["audio_chunks"] and call_data["audio_sample_rate"] and call_data["audio_num_channels"]:
             try:
                 await storage.save_recording_from_chunks(
-                    call_sid, 
-                    call_data["audio_chunks"], 
-                    call_data["audio_sample_rate"], 
-                    call_data["audio_num_channels"]
+                    call_sid,
+                    call_data["audio_chunks"],
+                    call_data["audio_sample_rate"],
+                    call_data["audio_num_channels"],
                 )
                 total_bytes = sum(len(c) for c in call_data["audio_chunks"])
                 logger.info(f" Saved {len(call_data['audio_chunks'])} audio chunks ({total_bytes} bytes)")
+                recording_url = f"minio://recordings/{call_sid}.wav"
             except Exception as e:
                 logger.error(f"Failed to save audio recording: {e}")
         else:
@@ -457,120 +523,7 @@ async def bot(
             storage=storage,
             call_start_time=call_start_time,
             latency_metrics=latency_metrics,
+            recording_url=recording_url,
+            omit_recording_url=use_vobiz_native_recording and not recording_url,
         )
     return call_sid
-
-async def ubona_bot(
-    websocket_client,
-    stream_id: str,
-    call_id: str,
-    agent_type: str,
-    agent_config: dict
-) -> None:
-    """Ubona bot entry point - sets up transport and runs the pipeline."""
-    sample_rate = 8000  # Ubona only supports 8kHz PCMU
-    session_timeout = agent_config.get("session_timeout_minutes", 10) * 60
-
-    call_start_time = time.monotonic()
-    storage = MinIOStorage.from_env()
-
-    serializer = UbonaFrameSerializer(
-        stream_id=stream_id,
-        call_id=call_id,
-        params=UbonaFrameSerializer.InputParams(sample_rate=sample_rate),
-    )
-
-    vad_analyzer = SileroVADAnalyzer(
-        sample_rate=sample_rate,
-        params=VADParams(stop_secs=0.2, min_volume=0.5, confidence=0.4, start_secs=0.1),
-    )
-    vad_analyzer._smoothing_factor = 0.1
-
-    import pipecat.transports.base_input
-    pipecat.transports.base_input.AUDIO_INPUT_TIMEOUT_SECS = 0.1
-    import pipecat.transports.base_output
-    pipecat.transports.base_output.BOT_VAD_STOP_SECS = 0.2
-
-    # Wrapper to handle ping/pong inline
-    class PingPongWrapper:
-        def __init__(self, ws):
-            self._ws = ws
-        async def receive_text(self):
-            while True:
-                data = await self._ws.receive_text()
-                try:
-                    msg = json.loads(data)
-                    if msg.get("event") == "ping":
-                        # Spec: pong must contain the same ts as ping for round-trip
-                        ping_ts = msg.get("ts", int(time.time() * 1000))
-                        await self._ws.send_text(json.dumps({"event": "pong", "ts": ping_ts}))
-                        continue
-                except:
-                    pass
-                return data
-        def __getattr__(self, name):
-            return getattr(self._ws, name)
-
-    transport = FastAPIWebsocketTransport(
-        websocket=PingPongWrapper(websocket_client),
-        params=FastAPIWebsocketParams(
-            audio_in_enabled=True,
-            audio_out_enabled=True,
-            add_wav_header=False,
-            vad_analyzer=vad_analyzer,
-            serializer=serializer,
-            audio_in_passthrough=True,
-            session_timeout=session_timeout,
-            audio_out_10ms_chunks=2,
-        ),
-    )
-
-    patch_immediate_first_chunk(transport)
-
-    audiobuffer = AudioBufferProcessor()
-    transcript = TranscriptProcessor()
-    call_data = {"audio_chunks": [], "audio_sample_rate": None, "audio_num_channels": None, "transcript_lines": []}
-
-    @audiobuffer.event_handler("on_audio_data")
-    async def on_audio_data(buffer, audio, sample_rate, num_channels):
-        call_data["audio_chunks"].append(audio)
-        if call_data["audio_sample_rate"] is None:
-            call_data["audio_sample_rate"], call_data["audio_num_channels"] = sample_rate, num_channels
-
-    @transcript.event_handler("on_transcript_update")
-    async def on_transcript_update(processor, frame):
-        for message in frame.messages:
-            ts = f"[{message.timestamp}] " if message.timestamp else ""
-            call_data["transcript_lines"].append(f"{ts}{message.role}: {message.content}")
-
-    metrics_observer = None
-    try:
-        metrics_observer = await run_bot(
-            transport, agent_config, audiobuffer, transcript,
-            vad_analyzer=vad_analyzer, vistaar_session_id=call_id,
-        )
-    finally:
-        logger.info(f"Saving call data for {call_id}...")
-        if call_data["audio_chunks"] and call_data["audio_sample_rate"]:
-            try:
-                await storage.save_recording_from_chunks(call_id, call_data["audio_chunks"], call_data["audio_sample_rate"], call_data["audio_num_channels"])
-                logger.info(f"Saved {len(call_data['audio_chunks'])} audio chunks")
-            except Exception as e:
-                logger.error(f"Failed to save audio: {e}")
-
-        if call_data["transcript_lines"]:
-            try:
-                await storage.save_transcript_from_lines(call_id, call_data["transcript_lines"])
-                logger.info(f"Saved {len(call_data['transcript_lines'])} transcript lines")
-            except Exception as e:
-                logger.error(f"Failed to save transcript: {e}")
-
-        latency_metrics = metrics_observer.to_dict() if metrics_observer else None
-        await submit_call_recording(
-            call_sid=call_id,
-            agent_type=agent_type,
-            agent_config=agent_config,
-            storage=storage,
-            call_start_time=call_start_time,
-            latency_metrics=latency_metrics,
-        )
