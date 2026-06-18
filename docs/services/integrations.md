@@ -30,6 +30,57 @@ Backend → returns stored API key for requested model
 
 When an agent uses OpenAI (LLM or Knowledge Base embeddings), the backend looks up the org's OpenAI integration key automatically — no environment variable needed on the voice server.
 
+## Custom LLM integrations
+
+Custom LLMs let each organisation connect **multiple** OpenAI Chat Completions API v1-compatible endpoints (for example NVIDIA NIM, vLLM, or other hosted models). Configuration is stored in the `CustomLLMIntegrations` MongoDB collection — not the flat `Integrations` table.
+
+```
+Dashboard → Integrations → Custom LLM
+    │  POST /api/v1/custom-llm-integrations  (JWT)
+    ▼
+Backend → MongoDB CustomLLMIntegrations (per org_id, multiple rows)
+
+Assistant create/edit
+    │  llm_model.name = "Custom LLM"
+    │  llm_model.custom_llm_id = "<mongo_id>"
+    ▼
+Voice Server
+    │  POST /api/v1/custom-llm-integrations/bot/get-config  (INTERNAL_API_KEY)
+    ▼
+Pipecat OpenAILLMService → POST {base_url}/chat/completions
+```
+
+Each custom LLM record stores:
+
+| Field | Description |
+|-------|-------------|
+| `name` | Display label in the dashboard |
+| `base_url` | Normalised OpenAI base URL (ends with `/v1`) |
+| `api_key` | Bearer token for the endpoint |
+| `model` | Model id sent in the chat completion request body |
+
+**Agent config example:**
+
+```json
+{
+  "llm_model": {
+    "name": "Custom LLM",
+    "custom_llm_id": "507f1f77bcf86cd799439011",
+    "model": "google/gemma-4-26B-A4B-it"
+  }
+}
+```
+
+**Custom LLM API endpoints:**
+
+| Method | Path | Auth |
+|--------|------|------|
+| `GET` | `/api/v1/custom-llm-integrations` | JWT |
+| `POST` | `/api/v1/custom-llm-integrations` | JWT |
+| `PUT` | `/api/v1/custom-llm-integrations/{id}` | JWT |
+| `DELETE` | `/api/v1/custom-llm-integrations/{id}` | JWT |
+| `POST` | `/api/v1/custom-llm-integrations/bot/get-config` | `X-API-Key` |
+
 ---
 
 ## Managing Integrations from the Dashboard
@@ -138,6 +189,7 @@ The following provider API keys can be stored as integrations:
 | OpenAI | `openai` | GPT models as LLM + Knowledge Base embeddings |
 | Anthropic | `anthropic` | Claude models as LLM |
 | Grok / xAI | `grok` | Grok models as LLM |
+| Custom LLM | _(see Custom LLM section)_ | User-provided OpenAI-compatible endpoints |
 
 ### STT Providers
 

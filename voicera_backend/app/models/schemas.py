@@ -342,6 +342,47 @@ class IntegrationBotRequest(BaseModel):
     org_id: str
     model: str
 
+# Custom LLM Integration Models
+class CustomLLMIntegrationCreate(BaseModel):
+    """Schema for creating a custom OpenAI-compatible LLM integration."""
+    org_id: str
+    name: str
+    base_url: str
+    api_key: str
+    model: str
+
+class CustomLLMIntegrationUpdate(BaseModel):
+    """Schema for updating a custom LLM integration."""
+    name: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
+class CustomLLMIntegrationResponse(BaseModel):
+    """Schema for custom LLM integration response."""
+    id: str
+    org_id: str
+    name: str
+    base_url: str
+    model: str
+    api_key: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class CustomLLMBotRequest(BaseModel):
+    """Schema for voice server requesting custom LLM config."""
+    org_id: str
+    custom_llm_id: str
+
+class CustomLLMBotResponse(BaseModel):
+    """Full custom LLM config for voice server (includes unmasked api_key)."""
+    id: str
+    org_id: str
+    name: str
+    base_url: str
+    model: str
+    api_key: str
+
 # Member Models
 class MemberCreate(BaseModel):
     """Schema for creating a new member (user) in an existing organization."""

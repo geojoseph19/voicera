@@ -74,6 +74,47 @@ def fetch_integration_key(org_id: str, model: str) -> Optional[str]:
         return None
 
 
+def fetch_custom_llm_config(org_id: str, custom_llm_id: str) -> Optional[dict]:
+    """
+    Fetch custom LLM integration config for the voice server.
+
+    Uses the bot endpoint which requires X-API-Key (INTERNAL_API_KEY).
+    Returns None on 404 or any error.
+    """
+    backend_url = _get_backend_url()
+    api_endpoint = f"{backend_url}/api/v1/custom-llm-integrations/bot/get-config"
+    headers = _get_api_headers()
+
+    try:
+        response = requests.post(
+            api_endpoint,
+            json={"org_id": org_id, "custom_llm_id": custom_llm_id},
+            headers=headers,
+            timeout=10,
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        data = response.json()
+        return data if isinstance(data, dict) else None
+    except requests.exceptions.RequestException as e:
+        logger.debug(
+            "Custom LLM config fetch failed for org=%s id=%s: %s",
+            org_id,
+            custom_llm_id,
+            e,
+        )
+        return None
+    except Exception as e:
+        logger.debug(
+            "Custom LLM config fetch error for org=%s id=%s: %s",
+            org_id,
+            custom_llm_id,
+            e,
+        )
+        return None
+
+
 def fetch_knowledge_chunks(
     *,
     org_id: str,

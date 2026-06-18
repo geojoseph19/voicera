@@ -39,7 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getCurrentUser, getAgent, updateAgent, getIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type KnowledgeDocument } from "@/lib/api"
+import { getCurrentUser, getAgent, updateAgent, getIntegrations, getCustomLLMIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type CustomLLMIntegration, type KnowledgeDocument } from "@/lib/api"
 
 // Import JSON data
 import sttData from "@/stt.json"
@@ -83,6 +83,7 @@ const getProviderOfficialName = (providerId: string): string => {
     playht: "PlayHT",
     groq: "Groq",
     grok: "Grok",
+    custom_llm: "Custom LLM",
   }
   return nameMap[providerId] || providerId.charAt(0).toUpperCase() + providerId.slice(1)
 }
@@ -110,6 +111,7 @@ const getProviderIdFromName = (providerName: string): string => {
     "PlayHT": "playht",
     "Groq": "groq",
     "Grok": "grok",
+    "Custom LLM": "custom_llm",
   }
   return reverseMap[providerName] || providerName.toLowerCase()
 }
@@ -187,6 +189,10 @@ const llmProviders = {
       "grok-2-vision-1212",
     ],
   },
+  custom_llm: {
+    name: "Custom LLM",
+    models: [],
+  },
 }
 
 const editWizardSteps = [
@@ -224,6 +230,7 @@ export default function AgentDetailPage() {
   const [hasChanges, setHasChanges] = useState(false)
   const [originalConfig, setOriginalConfig] = useState<any>(null)
   const [integratedProviders, setIntegratedProviders] = useState<Set<string>>(new Set())
+  const [customLLMIntegrations, setCustomLLMIntegrations] = useState<CustomLLMIntegration[]>([])
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocument[]>([])
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false)
 
@@ -243,6 +250,7 @@ export default function AgentDetailPage() {
   const [language, setLanguage] = useState("")
   const [llmProvider, setLlmProvider] = useState("")
   const [llmModel, setLlmModel] = useState("")
+  const [customLlmId, setCustomLlmId] = useState("")
   const [kenpathEnvironment, setKenpathEnvironment] = useState<"prod" | "dev">("prod")
   const [knowledgeEnabled, setKnowledgeEnabled] = useState(false)
   const [knowledgeDocumentIds, setKnowledgeDocumentIds] = useState<string[]>([])
@@ -450,12 +458,19 @@ export default function AgentDetailPage() {
 
         // Fetch integrations to know which providers have API keys
         try {
-          const integrations = await getIntegrations()
+          const [integrations, customLlms] = await Promise.all([
+            getIntegrations(),
+            getCustomLLMIntegrations(),
+          ])
+          setCustomLLMIntegrations(customLlms)
           const integrated = new Set<string>()
           integrations.forEach((integration: Integration) => {
-            // Store lowercase version for matching with provider IDs
             integrated.add(integration.model.toLowerCase())
           })
+          if (customLlms.length > 0) {
+            integrated.add("custom_llm")
+            integrated.add("custom llm")
+          }
           setIntegratedProviders(integrated)
         } catch (intError) {
           console.error("Failed to fetch integrations:", intError)
@@ -539,6 +554,7 @@ export default function AgentDetailPage() {
           const llmProviderName = agentData.agent_config?.llm_model?.name || ""
           setLlmProvider(getProviderIdFromName(llmProviderName))
           setLlmModel(agentData.agent_config?.llm_model?.model || "")
+          setCustomLlmId(agentData.agent_config?.llm_model?.custom_llm_id || "")
           const vistaarEnv = agentData.agent_config?.llm_model?.vistaar_environment
           setKenpathEnvironment(vistaarEnv === "dev" ? "dev" : "prod")
           setKnowledgeEnabled(Boolean((agentData.agent_config as any)?.knowledge_base_enabled))
@@ -732,6 +748,7 @@ export default function AgentDetailPage() {
       knowledge_top_k: knowledgeTopK,
       llm_model: {
         name: llmProvider || "",
+        ...(llmProvider === "custom_llm" && customLlmId && { custom_llm_id: customLlmId }),
         ...(llmProvider && llmProvider !== "kenpath" && llmModel && { model: llmModel }),
         ...(llmProvider === "kenpath" && { vistaar_environment: kenpathEnvironment }),
       },
@@ -779,7 +796,7 @@ export default function AgentDetailPage() {
     const hasAgentTypeChanged = agentType.trim() !== (agent.agent_type || "").trim()
     const hasChanged = hasConfigChanged || hasAgentTypeChanged
     setHasChanges(hasChanged)
-  }, [agentType, systemPrompt, greetingMessage, ignoreUserSpeechBeforeGreeting, interruptionMinWords, userSilenceHangupSeconds, callTimeoutSeconds, holdMessages, holdMessageTimeoutSeconds, userOnlineDetectionEnabled, userOnlineDetectionMessage, userOnlineDetectionSeconds, language, llmProvider, llmModel, kenpathEnvironment, knowledgeEnabled, knowledgeDocumentIds, knowledgeTopK, sttProvider, sttModel, ttsProvider, ttsModel, ttsVoice, speed, originalConfig, agent])
+  }, [agentType, systemPrompt, greetingMessage, ignoreUserSpeechBeforeGreeting, interruptionMinWords, userSilenceHangupSeconds, callTimeoutSeconds, holdMessages, holdMessageTimeoutSeconds, userOnlineDetectionEnabled, userOnlineDetectionMessage, userOnlineDetectionSeconds, language, llmProvider, llmModel, customLlmId, kenpathEnvironment, knowledgeEnabled, knowledgeDocumentIds, knowledgeTopK, sttProvider, sttModel, ttsProvider, ttsModel, ttsVoice, speed, originalConfig, agent])
 
   const handleSaveClick = () => {
     setShowConfirmModal(true)
@@ -827,6 +844,7 @@ export default function AgentDetailPage() {
           knowledge_top_k: knowledgeTopK,
           llm_model: {
             name: getProviderOfficialName(llmProvider),
+            ...(llmProvider === "custom_llm" && customLlmId && { custom_llm_id: customLlmId }),
             ...(llmProvider !== "kenpath" && { model: llmModel }),
             ...(llmProvider === "kenpath" && { vistaar_environment: kenpathEnvironment }),
           },
@@ -1052,6 +1070,7 @@ export default function AgentDetailPage() {
                       onValueChange={(v) => {
                         setLlmProvider(v);
                         setLlmModel("");
+                        setCustomLlmId("");
                         if (v === "kenpath") {
                           setKenpathEnvironment("prod")
                         }
@@ -1121,7 +1140,45 @@ export default function AgentDetailPage() {
                     </div>
                   )}
 
-                  {llmProvider && llmProvider !== "kenpath" && (
+                  {llmProvider === "custom_llm" && (
+                    <div>
+                      <label className="text-sm font-semibold text-slate-700 mb-2 block">
+                        <span className="inline-flex items-center gap-2">
+                          Custom LLM Instance
+                        </span>
+                      </label>
+                      <Select
+                        value={customLlmId}
+                        onValueChange={(id) => {
+                          setCustomLlmId(id)
+                          const selected = customLLMIntegrations.find((item) => item.id === id)
+                          setLlmModel(selected?.model || "")
+                        }}
+                        disabled={customLLMIntegrations.length === 0}
+                      >
+                        <SelectTrigger className="border-slate-200 h-11 shadow-sm rounded-md focus:ring-slate-300 transition focus:border-slate-500 bg-white">
+                          <SelectValue placeholder="Select custom LLM" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[100] rounded-md shadow-lg">
+                          {customLLMIntegrations.map((integration) => (
+                            <SelectItem key={integration.id} value={integration.id}>
+                              <div className="flex flex-col items-start">
+                                <span>{integration.name}</span>
+                                <span className="font-mono text-xs text-slate-500">{integration.model}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {customLlmId && (
+                        <p className="text-xs text-slate-500 mt-2 pl-1">
+                          Model: <span className="font-mono">{llmModel}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {llmProvider && llmProvider !== "kenpath" && llmProvider !== "custom_llm" && (
                     <div>
                       <label className="text-sm font-semibold text-slate-700 mb-2 block">
                         <span className="inline-flex items-center gap-2">

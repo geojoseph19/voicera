@@ -172,7 +172,22 @@ def initialize_database():
                 if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
                     logger.warning(f"Index creation warning: {e}")
         
-        # 9. KnowledgeDocuments collection (org-scoped PDF knowledge base)
+        # 9. CustomLLMIntegrations collection
+        if "CustomLLMIntegrations" not in existing_collections:
+            logger.info("Creating CustomLLMIntegrations collection...")
+            custom_llm = db["CustomLLMIntegrations"]
+            custom_llm.create_index("org_id", name="org_id_index")
+            logger.info("✓ Created CustomLLMIntegrations with index on org_id")
+        else:
+            logger.debug("CustomLLMIntegrations collection already exists. Ensuring indexes...")
+            custom_llm = db["CustomLLMIntegrations"]
+            try:
+                custom_llm.create_index("org_id", name="org_id_index")
+            except Exception as e:
+                if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+                    logger.warning(f"Index creation warning: {e}")
+
+        # 10. KnowledgeDocuments collection (org-scoped PDF knowledge base)
         if "KnowledgeDocuments" not in existing_collections:
             logger.info("Creating KnowledgeDocuments collection...")
             kd = db["KnowledgeDocuments"]
@@ -242,7 +257,7 @@ def initialize_database():
                     logger.warning(f"Index creation warning: {e}")
         
         logger.info("Database initialization completed successfully")
-        logger.info("Collections verified: UserTable, AgentConfig, Audience, Campaigns, CallLogs, PhoneNumber, Members, Integrations, KnowledgeDocuments, Batches, BatchContacts")
+        logger.info("Collections verified: UserTable, AgentConfig, Audience, Campaigns, CallLogs, PhoneNumber, Members, Integrations, CustomLLMIntegrations, KnowledgeDocuments, Batches, BatchContacts")
         
     except Exception as e:
         logger.error(f"Error initializing database: {e}")

@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { formatDistanceToNow } from "date-fns"
-import { getCurrentUser, createAgent, createVobizApplication, createPlivoApplication, deleteVobizApplication, deletePlivoApplication, deleteAgent, unlinkVobizNumber, unlinkPlivoNumber, fetchApiRoute, getIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type KnowledgeDocument } from "@/lib/api"
+import { getCurrentUser, createAgent, createVobizApplication, createPlivoApplication, deleteVobizApplication, deletePlivoApplication, deleteAgent, unlinkVobizNumber, unlinkPlivoNumber, fetchApiRoute, getIntegrations, getCustomLLMIntegrations, getKnowledgeDocuments, type User, type Agent, type CreateAgentRequest, type Integration, type CustomLLMIntegration, type KnowledgeDocument } from "@/lib/api"
 import { agentsQueryKey, useAgentsQuery } from "@/lib/queries/agents"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
@@ -85,6 +85,7 @@ const getProviderOfficialName = (providerId: string): string => {
     playht: "PlayHT",
     groq: "Groq",
     grok: "Grok",
+    custom_llm: "Custom LLM",
   }
   return nameMap[providerId] || providerId.charAt(0).toUpperCase() + providerId.slice(1)
 }
@@ -162,6 +163,10 @@ const llmProviders = {
       "grok-2-vision-1212",
     ],
   },
+  custom_llm: {
+    name: "Custom LLM",
+    models: [],
+  },
 }
 
 // Helper function to get agent display name from config
@@ -199,6 +204,7 @@ interface AgentConfig {
   systemPrompt: string
   llmProvider: string
   llmModel: string
+  customLlmId: string
   kenpathEnvironment: "prod" | "dev"
   knowledgeEnabled: boolean
   knowledgeDocumentIds: string[]
@@ -239,6 +245,7 @@ const defaultConfig: AgentConfig = {
   systemPrompt: "You are a helpful agent. You will help the customer with their queries and doubts. You will never speak more than 2 sentences. Keep your responses concise",
   llmProvider: "openai",
   llmModel: "gpt-4o",
+  customLlmId: "",
   kenpathEnvironment: "prod",
   knowledgeEnabled: false,
   knowledgeDocumentIds: [],
@@ -300,6 +307,7 @@ export default function AssistantsPage() {
   const [selectedAgentForTest, setSelectedAgentForTest] = useState<Agent | null>(null)
   const [showDeleteSuccessToast, setShowDeleteSuccessToast] = useState(false)
   const [integratedProviders, setIntegratedProviders] = useState<Set<string>>(new Set())
+  const [customLLMIntegrations, setCustomLLMIntegrations] = useState<CustomLLMIntegration[]>([])
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocument[]>([])
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false)
 
@@ -322,12 +330,19 @@ export default function AssistantsPage() {
 
         // Fetch integrations to know which providers have API keys
         try {
-          const integrations = await getIntegrations()
+          const [integrations, customLlms] = await Promise.all([
+            getIntegrations(),
+            getCustomLLMIntegrations(),
+          ])
+          setCustomLLMIntegrations(customLlms)
           const integrated = new Set<string>()
           integrations.forEach((integration: Integration) => {
-            // Store lowercase version for matching with provider IDs
             integrated.add(integration.model.toLowerCase())
           })
+          if (customLlms.length > 0) {
+            integrated.add("custom_llm")
+            integrated.add("custom llm")
+          }
           setIntegratedProviders(integrated)
         } catch (intError) {
           console.error("Failed to fetch integrations:", intError)
@@ -746,6 +761,7 @@ export default function AssistantsPage() {
       }
       if (key === "llmProvider") {
         updated.llmModel = ""
+        updated.customLlmId = ""
         if ((value as string) === "kenpath") {
           updated.kenpathEnvironment = "prod"
         }
@@ -753,6 +769,11 @@ export default function AssistantsPage() {
           updated.knowledgeEnabled = false
           updated.knowledgeDocumentIds = []
         }
+      }
+      if (key === "customLlmId") {
+        const selected = customLLMIntegrations.find((item) => item.id === value)
+        updated.customLlmId = value as string
+        updated.llmModel = selected?.model || ""
       }
       return updated
     })
@@ -793,10 +814,18 @@ export default function AssistantsPage() {
       const languageName = config.language // Already the name, no lookup needed
 
       // Build LLM model object with official provider name
-      const llmModel: { name: string; model?: string; vistaar_environment?: "prod" | "dev" } = {
+      const llmModel: {
+        name: string
+        model?: string
+        custom_llm_id?: string
+        vistaar_environment?: "prod" | "dev"
+      } = {
         name: getProviderOfficialName(config.llmProvider),
       }
-      if (config.llmProvider !== "kenpath") {
+      if (config.llmProvider === "custom_llm") {
+        llmModel.custom_llm_id = config.customLlmId
+        llmModel.model = config.llmModel
+      } else if (config.llmProvider !== "kenpath") {
         llmModel.model = config.llmModel
       } else {
         llmModel.vistaar_environment = config.kenpathEnvironment
@@ -948,6 +977,9 @@ export default function AssistantsPage() {
       case 2:
         if (config.llmProvider === "kenpath") {
           return !!config.llmProvider
+        }
+        if (config.llmProvider === "custom_llm") {
+          return !!config.llmProvider && !!config.customLlmId
         }
         return config.llmProvider && config.llmModel
       case 3:
@@ -1372,6 +1404,26 @@ export default function AssistantsPage() {
                             </SelectItem>
                           </SelectContent>
                         </Select>
+                      ) : config.llmProvider === "custom_llm" ? (
+                        <Select
+                          value={config.customLlmId}
+                          onValueChange={(v) => updateConfig("customLlmId", v)}
+                          disabled={customLLMIntegrations.length === 0}
+                        >
+                          <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
+                            <SelectValue placeholder="Select custom LLM" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg">
+                            {customLLMIntegrations.map((integration) => (
+                              <SelectItem key={integration.id} value={integration.id} className="py-2.5">
+                                <div className="flex flex-col items-start">
+                                  <span className="font-medium">{integration.name}</span>
+                                  <span className="font-mono text-xs text-slate-500">{integration.model}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       ) : (
                         <Select value={config.llmModel} onValueChange={(v) => updateConfig("llmModel", v)} disabled={!config.llmProvider || availableLLMModels.length === 0}>
                           <SelectTrigger className="h-12 rounded-lg w-full border-slate-200 bg-white text-base font-medium hover:bg-slate-50 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all">
@@ -1388,6 +1440,12 @@ export default function AssistantsPage() {
                       )}
                     </div>
                   </div>
+
+                  {config.llmProvider === "custom_llm" && config.customLlmId && (
+                    <p className="text-sm text-slate-600">
+                      Model: <span className="font-mono">{config.llmModel}</span> — configured in Integrations.
+                    </p>
+                  )}
 
                   {config.llmProvider === "kenpath" && (
                     <p className="text-sm text-blue-600">

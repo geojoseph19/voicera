@@ -37,7 +37,7 @@ import {
   Loader2,
   Phone,
 } from "lucide-react"
-import { getOrgId, getIntegrations, createIntegration, deleteIntegration, Integration } from "@/lib/api"
+import { getOrgId, getIntegrations, createIntegration, deleteIntegration, Integration, getCustomLLMIntegrations, createCustomLLMIntegration, updateCustomLLMIntegration, deleteCustomLLMIntegration, CustomLLMIntegration } from "@/lib/api"
 
 /** Backend integration model names for Vobiz (stored in MongoDB Integrations collection). */
 const VOBIZ_AUTH_ID_MODEL = "VobizAuthId"
@@ -194,6 +194,17 @@ export default function IntegrationsPage() {
   const [modalVobizAuthToken, setModalVobizAuthToken] = useState("")
   const [vobizTokenVisible, setVobizTokenVisible] = useState(false)
   const [telephonyProviderModal, setTelephonyProviderModal] = useState<"vobiz" | "plivo">("vobiz")
+
+  // Custom LLM integrations
+  const [customLLMIntegrations, setCustomLLMIntegrations] = useState<CustomLLMIntegration[]>([])
+  const [customLLMModalOpen, setCustomLLMModalOpen] = useState(false)
+  const [editingCustomLLM, setEditingCustomLLM] = useState<CustomLLMIntegration | null>(null)
+  const [modalCustomLLMName, setModalCustomLLMName] = useState("")
+  const [modalCustomLLMBaseUrl, setModalCustomLLMBaseUrl] = useState("")
+  const [modalCustomLLMApiKey, setModalCustomLLMApiKey] = useState("")
+  const [modalCustomLLMModel, setModalCustomLLMModel] = useState("")
+  const [customLLMApiKeyVisible, setCustomLLMApiKeyVisible] = useState(false)
+  const [customLLMDocsOpen, setCustomLLMDocsOpen] = useState(false)
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true)
@@ -206,7 +217,11 @@ export default function IntegrationsPage() {
   const fetchIntegrations = async () => {
     try {
       setIsLoading(true)
-      const integrations = await getIntegrations()
+      const [integrations, customLlms] = await Promise.all([
+        getIntegrations(),
+        getCustomLLMIntegrations(),
+      ])
+      setCustomLLMIntegrations(customLlms)
       
       // Convert integrations array to connected providers map and api keys map
       const connected: Record<string, boolean> = {}
@@ -424,6 +439,85 @@ export default function IntegrationsPage() {
     }
   }
 
+  const truncateUrl = (url: string, max = 48) => {
+    if (url.length <= max) return url
+    return `${url.slice(0, max)}…`
+  }
+
+  const openCustomLLMModal = (integration?: CustomLLMIntegration) => {
+    setSearchQuery("")
+    setEditingCustomLLM(integration ?? null)
+    setModalCustomLLMName(integration?.name ?? "")
+    setModalCustomLLMBaseUrl(integration?.base_url ?? "")
+    setModalCustomLLMApiKey(integration ? "••••••••••••••••" : "")
+    setModalCustomLLMModel(integration?.model ?? "")
+    setCustomLLMApiKeyVisible(false)
+    setCustomLLMDocsOpen(false)
+    setCustomLLMModalOpen(true)
+  }
+
+  const handleCustomLLMSave = async () => {
+    if (
+      !modalCustomLLMName.trim() ||
+      !modalCustomLLMBaseUrl.trim() ||
+      !modalCustomLLMModel.trim() ||
+      (!editingCustomLLM && !modalCustomLLMApiKey.trim())
+    ) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const orgId = getOrgId()
+      if (!orgId) throw new Error("Organization ID not found")
+
+      if (editingCustomLLM) {
+        const updatePayload: {
+          name: string
+          base_url: string
+          model: string
+          api_key?: string
+        } = {
+          name: modalCustomLLMName.trim(),
+          base_url: modalCustomLLMBaseUrl.trim(),
+          model: modalCustomLLMModel.trim(),
+        }
+        if (modalCustomLLMApiKey && !modalCustomLLMApiKey.includes("•")) {
+          updatePayload.api_key = modalCustomLLMApiKey.trim()
+        }
+        await updateCustomLLMIntegration(editingCustomLLM.id, updatePayload)
+      } else {
+        await createCustomLLMIntegration({
+          org_id: orgId,
+          name: modalCustomLLMName.trim(),
+          base_url: modalCustomLLMBaseUrl.trim(),
+          api_key: modalCustomLLMApiKey.trim(),
+          model: modalCustomLLMModel.trim(),
+        })
+      }
+
+      setCustomLLMModalOpen(false)
+      await fetchIntegrations()
+    } catch (error) {
+      console.error("Error saving custom LLM integration:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCustomLLMDelete = async (integration: CustomLLMIntegration) => {
+    setIsSaving(true)
+    try {
+      await deleteCustomLLMIntegration(integration.id)
+      setCustomLLMModalOpen(false)
+      await fetchIntegrations()
+    } catch (error) {
+      console.error("Error deleting custom LLM integration:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col h-full overflow-hidden">
       {/* Fixed Header */}
@@ -508,6 +602,74 @@ export default function IntegrationsPage() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {/* Custom LLM — OpenAI-compatible chat completion endpoints */}
+        {!isLoading && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Custom LLM
+              </h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openCustomLLMModal()}
+                className="gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Custom LLM
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                {customLLMIntegrations.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    Connect your own OpenAI Chat Completions v1-compatible endpoint. You can add
+                    multiple custom LLMs and select them when creating assistants.
+                  </div>
+                ) : (
+                  customLLMIntegrations.map((integration, index) => (
+                    <div
+                      key={integration.id}
+                      className={`flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors ${index > 0 ? "border-t" : ""}`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-purple-500/10">
+                          <Brain className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{integration.name}</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              Custom LLM
+                            </Badge>
+                            <div className="flex items-center justify-center h-5 w-5 rounded-full bg-green-500/10">
+                              <Check className="h-3 w-3 text-green-600" />
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate max-w-[420px]">
+                            <span className="font-mono">{integration.model}</span>
+                            {" · "}
+                            {truncateUrl(integration.base_url)}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openCustomLLMModal(integration)}
+                        className="gap-1.5 shrink-0"
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                        Manage
+                      </Button>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </section>
@@ -891,6 +1053,177 @@ export default function IntegrationsPage() {
                 <>
                   <Save className="h-4 w-4 mr-1.5" />
                   {(telephonyProviderModal === "vobiz" ? vobizConnected : plivoConnected) ? "Update" : "Connect"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom LLM — endpoint, API key, model */}
+      <Dialog open={customLLMModalOpen} onOpenChange={setCustomLLMModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              {editingCustomLLM ? "Manage" : "Add"} Custom LLM
+            </DialogTitle>
+            <DialogDescription>
+              Connect an OpenAI Chat Completions API v1-compatible endpoint. Voicera will send
+              streaming chat completion requests to your URL using your API key.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="custom-llm-name">Display name</Label>
+              <Input
+                id="custom-llm-name"
+                type="text"
+                placeholder="e.g. NVIDIA Gemma"
+                value={modalCustomLLMName}
+                onChange={(e) => setModalCustomLLMName(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="custom-llm-base-url">Endpoint URL</Label>
+              <Input
+                id="custom-llm-base-url"
+                type="url"
+                placeholder="https://your-host/v1/chat/completions"
+                value={modalCustomLLMBaseUrl}
+                onChange={(e) => setModalCustomLLMBaseUrl(e.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                Must be compatible with OpenAI Chat Completions API v1. You may paste the full
+                /v1/chat/completions URL or just the /v1 base URL.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="custom-llm-api-key">API key / Bearer token</Label>
+              <div className="relative">
+                <Input
+                  id="custom-llm-api-key"
+                  type={customLLMApiKeyVisible ? "text" : "password"}
+                  placeholder="Your API key or Bearer token"
+                  value={modalCustomLLMApiKey}
+                  onChange={(e) => setModalCustomLLMApiKey(e.target.value)}
+                  className="pr-10"
+                  autoComplete="off"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full w-10 hover:bg-transparent"
+                  onClick={() => setCustomLLMApiKeyVisible(!customLLMApiKeyVisible)}
+                  tabIndex={-1}
+                >
+                  {customLLMApiKeyVisible ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="custom-llm-model">Model ID</Label>
+              <Input
+                id="custom-llm-model"
+                type="text"
+                placeholder="e.g. google/gemma-4-26B-A4B-it"
+                value={modalCustomLLMModel}
+                onChange={(e) => setModalCustomLLMModel(e.target.value)}
+                autoComplete="off"
+                className="font-mono text-sm"
+              />
+            </div>
+
+            <div className="rounded-lg border bg-muted/30">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium"
+                onClick={() => setCustomLLMDocsOpen(!customLLMDocsOpen)}
+              >
+                Endpoint requirements
+                <span className="text-xs text-muted-foreground">
+                  {customLLMDocsOpen ? "Hide" : "Show"}
+                </span>
+              </button>
+              {customLLMDocsOpen && (
+                <div className="space-y-3 border-t px-3 py-3 text-xs text-muted-foreground">
+                  <p>Your endpoint must implement OpenAI-compatible chat completions:</p>
+                  <ul className="list-disc space-y-1 pl-4">
+                    <li>
+                      <code className="text-foreground">POST {"{base_url}"}/chat/completions</code>
+                    </li>
+                    <li>
+                      Header: <code className="text-foreground">Authorization: Bearer &lt;token&gt;</code>
+                    </li>
+                    <li>
+                      Header: <code className="text-foreground">Content-Type: application/json</code>
+                    </li>
+                    <li>
+                      Body: <code className="text-foreground">model</code>,{" "}
+                      <code className="text-foreground">messages</code>, optional{" "}
+                      <code className="text-foreground">max_tokens</code>
+                    </li>
+                    <li>
+                      Response: streaming SSE with <code className="text-foreground">choices[].delta.content</code>{" "}
+                      (or standard non-streaming JSON)
+                    </li>
+                  </ul>
+                  <pre className="overflow-x-auto rounded-md bg-background p-2 text-[11px] leading-relaxed text-foreground">
+{`curl --location 'https://your-host/v1/chat/completions' \\
+  --header 'Content-Type: application/json' \\
+  --header 'Authorization: Bearer YOUR_API_KEY' \\
+  --data '{
+    "model": "your-model-id",
+    "messages": [
+      { "role": "user", "content": "Hello" }
+    ],
+    "max_tokens": 1024
+  }'`}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {editingCustomLLM && (
+              <Button
+                variant="outline"
+                onClick={() => handleCustomLLMDelete(editingCustomLLM)}
+                disabled={isSaving}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 sm:mr-auto"
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Delete
+              </Button>
+            )}
+            <Button
+              onClick={handleCustomLLMSave}
+              disabled={
+                !modalCustomLLMName.trim() ||
+                !modalCustomLLMBaseUrl.trim() ||
+                !modalCustomLLMModel.trim() ||
+                (!editingCustomLLM && !modalCustomLLMApiKey.trim()) ||
+                isSaving
+              }
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-1.5" />
+                  {editingCustomLLM ? "Update" : "Add"}
                 </>
               )}
             </Button>

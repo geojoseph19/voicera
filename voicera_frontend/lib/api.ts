@@ -897,6 +897,103 @@ export interface CreateIntegrationRequest {
   api_key: string
 }
 
+export interface CustomLLMIntegration {
+  id: string
+  org_id: string
+  name: string
+  base_url: string
+  model: string
+  api_key: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreateCustomLLMIntegrationRequest {
+  org_id: string
+  name: string
+  base_url: string
+  api_key: string
+  model: string
+}
+
+export interface UpdateCustomLLMIntegrationRequest {
+  name?: string
+  base_url?: string
+  api_key?: string
+  model?: string
+}
+
+/**
+ * Get all custom LLM integrations for the current organization
+ */
+export async function getCustomLLMIntegrations(): Promise<CustomLLMIntegration[]> {
+  const response = await fetchApiRoute("/api/custom-llm-integrations")
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to fetch custom LLM integrations")
+  }
+
+  return response.json()
+}
+
+/**
+ * Create a custom LLM integration
+ */
+export async function createCustomLLMIntegration(
+  data: CreateCustomLLMIntegrationRequest
+): Promise<{ status: string; integration: CustomLLMIntegration }> {
+  const response = await fetchApiRoute("/api/custom-llm-integrations", {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to create custom LLM integration")
+  }
+
+  return response.json()
+}
+
+/**
+ * Update a custom LLM integration
+ */
+export async function updateCustomLLMIntegration(
+  id: string,
+  data: UpdateCustomLLMIntegrationRequest
+): Promise<{ status: string; integration: CustomLLMIntegration }> {
+  const response = await fetchApiRoute(`/api/custom-llm-integrations/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to update custom LLM integration")
+  }
+
+  return response.json()
+}
+
+/**
+ * Delete a custom LLM integration
+ */
+export async function deleteCustomLLMIntegration(
+  id: string
+): Promise<{ status: string; message: string }> {
+  const response = await fetchApiRoute(`/api/custom-llm-integrations/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || error.error || "Failed to delete custom LLM integration")
+  }
+
+  return response.json()
+}
+
 /**
  * Get all integrations for the current organization
  */

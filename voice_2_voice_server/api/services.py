@@ -32,11 +32,12 @@ from services.bhashini.stt import BhashiniSTTService
 from services.bhashini.tts import BhashiniTTSService
 from services.openai_kb_llm import OpenAIKnowledgeLLMService
 from services.vllm_qwen import create_voice_llm, VLLM_API_KEY, VLLM_BASE_URL
+from services.custom_llm import create_custom_llm
 from config import get_llm_model
 from config.stt_mappings import STT_LANGUAGE_MAP
 from config.tts_mappings import TTS_LANGUAGE_MAP
 
-from utils.backend_utils import fetch_integration_key
+from utils.backend_utils import fetch_custom_llm_config, fetch_integration_key
 
 
 class ServiceCreationError(Exception):
@@ -275,6 +276,49 @@ def create_llm_service(
             or VLLM_BASE_URL,
             params=params,
             retry_timeout_secs=float(args.get("retry_timeout_secs", 20.0)),
+            retry_on_timeout=bool(args.get("retry_on_timeout", False)),
+        )
+        service._user_aggregator_params = user_aggregator_params
+        return service
+    elif isinstance(provider_normalized, str) and provider_normalized.lower() in (
+        "custom llm",
+        "custom_llm",
+    ):
+        if not org_id:
+            raise ServiceCreationError(
+                "Custom LLM requires an organization context. Use an agent that belongs to an organization."
+            )
+        custom_llm_id = llm_config.get("custom_llm_id") or args.get("custom_llm_id")
+        if not custom_llm_id:
+            raise ServiceCreationError(
+                "Custom LLM integration id is missing. Select a Custom LLM instance in the assistant settings."
+            )
+        cfg = fetch_custom_llm_config(org_id, custom_llm_id)
+        if not cfg:
+            raise ServiceCreationError(
+                "Custom LLM integration not found. Configure it on the Integrations page."
+            )
+        resolved_model = get_llm_model("custom_llm", model or cfg.get("model"))
+        if not resolved_model:
+            raise ServiceCreationError(
+                "Custom LLM model is not configured. Set a model id in Integrations."
+            )
+        user_aggregator_params = LLMUserAggregatorParams(
+            aggregation_timeout=args.get("aggregation_timeout", 0.05)
+        )
+        params = BaseOpenAILLMService.InputParams(
+            temperature=float(args.get("temperature", 0.7)),
+            top_p=float(args.get("top_p", 0.9)),
+            max_tokens=int(args.get("max_tokens", 200)),
+            frequency_penalty=float(args.get("frequency_penalty", 0.0)),
+            presence_penalty=float(args.get("presence_penalty", 0.0)),
+        )
+        service = create_custom_llm(
+            model=resolved_model,
+            api_key=cfg["api_key"],
+            base_url=cfg["base_url"],
+            params=params,
+            retry_timeout_secs=float(args.get("retry_timeout_secs", 30.0)),
             retry_on_timeout=bool(args.get("retry_on_timeout", False)),
         )
         service._user_aggregator_params = user_aggregator_params

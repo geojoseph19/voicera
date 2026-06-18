@@ -8,6 +8,7 @@ LLM_DEFAULT_MODELS = {
     "Grok": "grok-3-beta",
     "grok": "grok-3-beta",
     "qwen": "Qwen/Qwen3-8B",
+    "custom_llm": None,
 }
 
 
@@ -26,5 +27,9 @@ def get_llm_model(provider: str, model: str = None) -> str:
     
     if model:
         return model
+
+    default = LLM_DEFAULT_MODELS.get(provider)
+    if default is None and provider == "custom_llm":
+        return model or ""
     
     return LLM_DEFAULT_MODELS.get(provider, "gpt-4o")
