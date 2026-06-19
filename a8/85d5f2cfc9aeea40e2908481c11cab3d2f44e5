@@ -1,0 +1,113 @@
+docs/reference/environment-variables.md
+  s_11c7acdf4a0478::t_d7bed03d497d7d 179-184,191-193
+  s_11c7acdf4a0478::t_e32c3603250f59 166-170
+  s_11c7acdf4a0478::t_e22b5904ee13bd 81,85-87
+  s_11c7acdf4a0478::t_afb6467d37f5cb 126,128,132-144
+  s_11c7acdf4a0478::t_5ea47032f33ebb 35-36,38
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,63
+  s_11c7acdf4a0478::t_ae62f346134e4b 213,215
+  s_11c7acdf4a0478::t_d1bf5e1584d33a 45-47
+  s_11c7acdf4a0478::t_f7747a662f7508 152
+docs/concepts/glossary.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,18,27,46,112,118,160-161,163
+docs/concepts/agents-campaigns-calls.md
+  s_11c7acdf4a0478::t_1ffc70f812d283 227
+  s_11c7acdf4a0478::t_4b5f0e0ce7d5ec 228-230
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,10
+docs/guides/developer/local-setup.md
+  s_11c7acdf4a0478::t_6a012b93a127a0 116-117,119-120,122-125,127-128
+  s_11c7acdf4a0478::t_4aa223e9d462d2 52-54
+  s_11c7acdf4a0478::t_deafb89798baca 89
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,10
+docs/guides/developer/testing.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+  s_11c7acdf4a0478::t_343d0f859be478 80,83-89
+  s_11c7acdf4a0478::t_a65980545b3314 99,102-103
+docs/concepts/knowledge-base-rag.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/reference/ports-and-defaults.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2
+docs/guides/deployment/docker-compose.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/services/backend.md
+  s_11c7acdf4a0478::t_222906658498ba 43
+  s_11c7acdf4a0478::t_fa05e9747ae154 65
+  s_11c7acdf4a0478::t_428ea3a643bfef 71
+  s_11c7acdf4a0478::t_92af541820abd7 64
+docs/quickstart/prerequisites.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/guides/deployment/deployment-walkthrough.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,106
+docs/quickstart/install-and-run.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/reference/websocket-api.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 7,20
+docs/introduction/what-is-voicera.md
+  s_11c7acdf4a0478::t_922868ac7fdee9 24-31
+docs/quickstart/default-credentials.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/concepts/telephony-model.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/guides/operator/dashboard-tour.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/concepts/data-flow.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,228
+docs/quickstart/first-call.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/guides/deployment/public-voice-urls.md
+  s_11c7acdf4a0478::t_d551b8e0229d14 74
+docs/concepts/architecture.md
+  s_11c7acdf4a0478::t_fd8eab6791d052 36
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,10,21,30
+  s_11c7acdf4a0478::t_8cd23d2bc7b34d 15
+docs/guides/developer/contributing.md
+  s_11c7acdf4a0478::t_305fa9b984b8b1 40
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,300
+docs/troubleshooting/deployment.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 64,79
+  s_11c7acdf4a0478::t_19f8a7485e6496 343
+  s_11c7acdf4a0478::t_d06153a30310cb 217
+docs/reference/endpoints-cheatsheet.md
+  s_11c7acdf4a0478::t_cd8362dd995a34 329-334,336,339,343-345
+  s_11c7acdf4a0478::t_cdeb635236ad62 7
+  s_11c7acdf4a0478::t_51ec66e5fd2c2b 70
+  s_11c7acdf4a0478::t_1e609c59ff5caa 204
+docs/services/voice-server.md
+  s_11c7acdf4a0478::t_13234eae09996d 46-47
+docs/services/frontend.md
+  s_11c7acdf4a0478::t_9c8b5e6aaac881 75
+docs/troubleshooting/common-issues.md
+  s_11c7acdf4a0478::t_3b187f30461f28 284
+  s_11c7acdf4a0478::t_cdeb635236ad62 2
+  s_11c7acdf4a0478::t_52a39263e27f88 91,96
+docs/reference/rest-api.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2
+  s_11c7acdf4a0478::t_c98fc1417c9683 34,36-42,46-48,52-54
+  s_11c7acdf4a0478::t_a3756df06a8998 7
+  s_11c7acdf4a0478::t_09aa46da2fd96f 214
+docs/concepts/voice-pipeline.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,23,40
+  s_11c7acdf4a0478::t_7a4b6b54c5a616 165
+docs/guides/deployment/production.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7
+docs/guides/deployment/security-hardening.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 2,7,12,96
+docs/troubleshooting/telephony.md
+  s_11c7acdf4a0478::t_cdeb635236ad62 199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "a885d5f2cfc9aeea40e2908481c11cab3d2f44e5",
+  "prompts": {},
+  "sessions": {
+    "s_11c7acdf4a0478": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3002e761-f78f-43ae-b5f9-c86731dd7975",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Geo Joseph <geojofficial@gmail.com>"
+    }
+  }
+}
