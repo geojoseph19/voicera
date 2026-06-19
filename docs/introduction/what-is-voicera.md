@@ -1,12 +1,12 @@
 ---
-description: A plain-language introduction for programme managers, operators, and decision-makers.
+description: Platform overview — what VoicEra does and how it fits together.
 ---
 
 # What is VoicEra
 
 **VoicEra is a platform for running AI phone agents that answer or place calls in Indian languages.** A web dashboard lets you configure each agent, view call history, listen to recordings, and link real phone numbers — without writing code.
 
-This page is for programme managers, district IT officers, and operators. For technical setup, see [Prerequisites](../quickstart/prerequisites.md) and [Architecture](../concepts/architecture.md).
+For technical setup, jump to [Prerequisites](../quickstart/prerequisites.md) or [Architecture](../concepts/architecture.md).
 
 ## The problem it solves
 

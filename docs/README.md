@@ -23,47 +23,29 @@ New here? Start with [What is VoicEra](introduction/what-is-voicera.md) for the 
 | **Web dashboard** | Configure agents, link numbers, run campaigns, review transcripts and recordings. |
 | **Self-hosted** | Docker Compose stack. Your data, your servers, your model keys. |
 
-## Pick your path
+## Where to start
 
-{% tabs %}
-{% tab title="I want to try it" %}
-1. [Check prerequisites](quickstart/prerequisites.md)
-2. [Install and run with Docker](quickstart/install-and-run.md)
-3. [Make your first call](quickstart/first-call.md)
-{% endtab %}
-
-{% tab title="I'm an operator" %}
-1. [Dashboard tour](guides/operator/dashboard-tour.md)
-2. [Daily operations](guides/operator/operations.md)
-3. [Operator FAQ](guides/operator/faq.md)
-{% endtab %}
-
-{% tab title="I'm a developer" %}
-1. [Architecture](concepts/architecture.md)
-2. [Local setup](guides/developer/local-setup.md)
-3. [REST](reference/rest-api.md) and [WebSocket](reference/websocket-api.md) APIs
-{% endtab %}
-
-{% tab title="I'm deploying to prod" %}
-1. [Production deployment](guides/deployment/production.md)
-2. [Public voice URLs](guides/deployment/public-voice-urls.md)
-3. [Security hardening](guides/deployment/security-hardening.md)
-{% endtab %}
-{% endtabs %}
+| If you are… | Start here |
+| --- | --- |
+| **Evaluating or demoing** | [Prerequisites](quickstart/prerequisites.md) → [Install and run](quickstart/install-and-run.md) → [Your first call](quickstart/first-call.md) |
+| **An operator using the dashboard** | [Dashboard tour](guides/operator/dashboard-tour.md) → [Daily operations](guides/operator/operations.md) |
+| **A developer building or extending** | [Architecture](concepts/architecture.md) → [Local setup](guides/developer/local-setup.md) → [REST API](reference/rest-api.md) |
 
 ## Architecture at a glance
 
-```
-┌──────────┐    ┌──────────┐    ┌──────────────┐
-│ Frontend │◄──►│ Backend  │◄──►│ Voice Server │
-│ Next.js  │    │ FastAPI  │    │ Pipecat      │
-│ :3000    │    │ :8000    │    │ :7860        │
-└──────────┘    └────┬─────┘    └──────┬───────┘
-                     ▼                 ▼
-                ┌─────────┐      ┌──────────┐
-                │ MongoDB │      │  MinIO   │
-                │ :27017  │      │ :9000/01 │
-                └─────────┘      └──────────┘
+```mermaid
+flowchart LR
+  FE["Frontend<br/>Next.js · :3000"]
+  BE["Backend<br/>FastAPI · :8000"]
+  VS["Voice server<br/>Pipecat · :7860"]
+  DB[("MongoDB<br/>:27017")]
+  S3[("MinIO<br/>:9000 / :9001")]
+
+  FE <--> BE
+  BE <--> VS
+  BE --> DB
+  VS --> S3
+  BE --> S3
 ```
 
 Three services, two stores, optional local AI servers. Full diagram and call flow in [Architecture](concepts/architecture.md).
