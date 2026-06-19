@@ -1,5 +1,5 @@
 ---
-description: Next.js dashboard for operators to manage agents, numbers, integrations, and calls.
+description: Operator dashboard for managing agents, numbers, integrations, and calls.
 ---
 
 # Frontend
@@ -24,7 +24,7 @@ Next.js (App Router) with server components for protected pages. Client componen
 
 ```mermaid
 flowchart LR
-  U[Operator browser] --> FE[Next.js :3000]
+  U[Operator browser] --> FE[Frontend\n:3000]
   FE -- NEXT_PUBLIC_API_URL --> BE[Backend :8000]
   FE -- VOICE_SERVER_URL (server) --> VS[Voice Server :7860]
   U -- WSS test --> VS

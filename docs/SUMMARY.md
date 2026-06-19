@@ -47,9 +47,9 @@
 
 ## Services
 
-* [Backend (FastAPI)](services/backend.md)
-* [Voice server (Pipecat)](services/voice-server.md)
-* [Frontend (Next.js)](services/frontend.md)
+* [Backend](services/backend.md)
+* [Voice server](services/voice-server.md)
+* [Frontend](services/frontend.md)
 * [Integrations](services/integrations.md)
 * [AI4Bharat STT](services/ai4bharat-stt.md)
 * [AI4Bharat TTS](services/ai4bharat-tts.md)

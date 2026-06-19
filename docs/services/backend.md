@@ -1,5 +1,5 @@
 ---
-description: FastAPI REST API for users, agents, telephony, campaigns, knowledge base, and integrations.
+description: REST API for users, agents, telephony, campaigns, knowledge base, and integrations.
 ---
 
 # Backend
@@ -25,7 +25,7 @@ FastAPI app backed by MongoDB. MinIO holds call recordings and KB documents. The
 
 ```mermaid
 flowchart LR
-  FE[Frontend\nNext.js :3000] -- JWT --> BE[Backend\nFastAPI :8000]
+  FE[Frontend\n:3000] -- JWT --> BE[Backend\n:8000]
   VS[Voice Server :7860] -- X-API-Key --> BE
   BE --> M[(MongoDB :27017)]
   BE --> S[(MinIO :9000)]

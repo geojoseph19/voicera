@@ -35,9 +35,9 @@ New here? Start with [What is VoicEra](introduction/what-is-voicera.md) for the 
 
 ```mermaid
 flowchart LR
-  FE["Frontend<br/>Next.js · :3000"]
-  BE["Backend<br/>FastAPI · :8000"]
-  VS["Voice server<br/>Pipecat · :7860"]
+  FE["Frontend<br/>:3000"]
+  BE["Backend<br/>:8000"]
+  VS["Voice server<br/>:7860"]
   DB[("MongoDB<br/>:27017")]
   S3[("MinIO<br/>:9000 / :9001")]
 

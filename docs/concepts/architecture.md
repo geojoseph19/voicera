@@ -47,9 +47,9 @@ flowchart TB
   AI["External AI\nLLM · STT · TTS"]
 
   subgraph platform ["VoicEra Platform"]
-    FE["Frontend\nNext.js · :3000"]
-    BE["Backend\nFastAPI · :8000"]
-    VS["Voice server\nPipecat · :7860"]
+    FE["Frontend\n:3000"]
+    BE["Backend\n:8000"]
+    VS["Voice server\n:7860"]
     MONGO[("MongoDB\n:27017")]
     MINIO[("MinIO\n:9000")]
     CHROMA[("ChromaDB\nembedded in backend")]
@@ -126,9 +126,9 @@ All services run on one host via `docker-compose.yml`. Good for trials, demos, a
 
 ```
 host
-├── frontend         (Next.js, :3000)
-├── backend          (FastAPI,  :8000)
-├── voice_server     (Pipecat,  :7860)
+├── frontend         (:3000)
+├── backend          (:8000)
+├── voice_server     (:7860)
 ├── mongodb          (:27017)
 └── minio            (:9000, :9001)
 ```

@@ -1,5 +1,5 @@
 ---
-description: Real-time Pipecat voice pipeline and telephony bridge for VoicEra calls.
+description: Real-time voice pipeline and telephony bridge for VoicEra calls.
 ---
 
 # Voice Server
@@ -26,7 +26,7 @@ The pipeline and its providers are chosen **per agent** in the Backend (`llm_mod
 flowchart LR
   T[Telephony\nVobiz / Plivo] -- WS audio --> VS
   B[Browser test] -- WS audio --> VS
-  VS[Voice Server\nFastAPI + Pipecat :7860]
+  VS[Voice Server\n:7860]
   VS -- X-API-Key --> BE[Backend :8000]
   VS --> STT[STT provider]
   VS --> LLM[LLM provider]
