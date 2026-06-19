@@ -1,0 +1,33 @@
+docs/services/voice-server.md
+  s_11c7acdf4a0478::t_0b18b5aeb11ca7 2
+  s_11c7acdf4a0478::t_2025fd7df5e7fa 29
+docs/services/backend.md
+  s_11c7acdf4a0478::t_623d68b11d7209 2
+  s_11c7acdf4a0478::t_9e2c13464e7d25 28
+docs/services/frontend.md
+  s_11c7acdf4a0478::t_3a1bd89a4138db 2
+  s_11c7acdf4a0478::t_f13d25aeab6efd 27
+docs/README.md
+  s_11c7acdf4a0478::t_efab1e00712436 38-40
+docs/SUMMARY.md
+  s_11c7acdf4a0478::t_ce5c133b14fa7e 50-52
+docs/concepts/architecture.md
+  s_11c7acdf4a0478::t_39e641e99d1b37 50-52
+  s_11c7acdf4a0478::t_c36908a1c63155 129-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ca6e3eac45a00c9cf0d873e0753526de64d446fc",
+  "prompts": {},
+  "sessions": {
+    "s_11c7acdf4a0478": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3002e761-f78f-43ae-b5f9-c86731dd7975",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Geo Joseph <geojofficial@gmail.com>"
+    }
+  }
+}
