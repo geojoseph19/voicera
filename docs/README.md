@@ -54,7 +54,6 @@ Three services, two stores, optional local AI servers. Full diagram and call flo
 
 * **Source** — [github.com/COSS-India/voicera\_mono\_repository](https://github.com/COSS-India/voicera_mono_repository)
 * **License** — [MIT](legal/license.md)
-* **Maintainer** — Centre for Open Source Software, India
 
 ## Need help?
 
