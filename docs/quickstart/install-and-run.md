@@ -1,10 +1,10 @@
 ---
-description: Install Docker, clone the repository, configure environment files, and start all Voicera services.
+description: Install Docker, clone the repository, configure environment files, and start all VoicEra services.
 ---
 
 # Install and run
 
-End-to-end install path for operators and hosting partners running Voicera with Docker Compose. Complete the [prerequisites](prerequisites.md) before starting.
+End-to-end install path for operators and hosting partners running VoicEra with Docker Compose. Complete the [prerequisites](prerequisites.md) before starting.
 
 ## 1. Install Docker and Docker Compose
 

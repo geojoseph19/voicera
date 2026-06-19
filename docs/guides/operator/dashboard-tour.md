@@ -1,10 +1,10 @@
 ---
-description: A tour of the Voicera operator dashboard — agents, integrations, phone numbers, calls, and the browser test.
+description: A tour of the VoicEra operator dashboard — agents, integrations, phone numbers, calls, and the browser test.
 ---
 
 # Dashboard tour
 
-This page walks through the Voicera web dashboard for non-technical operators. Use it to learn where each setting lives and how to confirm that a real call worked.
+This page walks through the VoicEra web dashboard for non-technical operators. Use it to learn where each setting lives and how to confirm that a real call worked.
 
 {% hint style="info" %}
 You only need a browser and your operator login. No SSH or server access is required for anything on this page.

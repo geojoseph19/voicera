@@ -40,7 +40,7 @@ Copy `voicera_backend/env.example` to `.env`. Key variables:
 | `MONGODB_HOST` / `MONGODB_PORT` / `MONGODB_USER` / `MONGODB_PASSWORD` / `MONGODB_DATABASE` | Database connection |
 | `SECRET_KEY` | JWT signing |
 | `INTERNAL_API_KEY` | Shared secret used by the Voice Server to call internal endpoints |
-| `MINIO_HOST` / `MINIO_PORT` / `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Object storage |
+| `MINIO_ENDPOINT` / `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | Object storage |
 | `FRONTEND_URL` | Used in email links and CORS |
 | `CORS_ORIGINS` | Allowed origins for the dashboard |
 
@@ -61,14 +61,14 @@ High-level groups:
 
 | Group | Path prefix | Auth |
 |-------|-------------|------|
-| Auth | `/api/v1/auth` | Public + JWT |
-| Agents / assistants | `/api/v1/assistants` | JWT |
+| Auth | `/api/v1/users` | Public + JWT |
+| Agents | `/api/v1/agents` | JWT |
 | Telephony (Vobiz / Plivo) | `/api/v1/telephony` | JWT |
 | Campaigns / batches | `/api/v1/campaigns` | JWT |
 | Meetings / call logs | `/api/v1/meetings` | JWT |
 | Integrations | `/api/v1/integrations` | JWT (+ `X-API-Key` for `bot/get-api-key`) |
 | Custom LLM integrations | `/api/v1/custom-llm-integrations` | JWT (+ `X-API-Key` for `bot/get-config`) |
-| Knowledge base | `/api/v1/knowledge-base` | JWT |
+| Knowledge base | `/api/v1/knowledge` | JWT |
 | Health | `/health` | Public |
 
 ## How it talks to other services

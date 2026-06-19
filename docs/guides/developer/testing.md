@@ -1,10 +1,10 @@
 ---
-description: Run and write tests for the Voicera backend, frontend, and voice server.
+description: Run and write tests for the VoicEra backend, frontend, and voice server.
 ---
 
 # Testing
 
-How to run and write tests across the three Voicera services. Audience: engineers writing new code or fixing bugs.
+How to run and write tests across the three VoicEra services. Audience: engineers writing new code or fixing bugs.
 
 ## What is tested where
 
@@ -77,16 +77,16 @@ def test_create_agent(agent_service):
 
 ```python
 import pytest
+from unittest.mock import AsyncMock, patch
 
 @pytest.mark.asyncio
-async def test_llm_response():
-    from voice_2_voice_server.services.llm import LLMService
-    service = LLMService("openai")
-    response = await service.generate(
-        messages=[{"role": "user", "content": "Hello"}],
-        max_tokens=100,
-    )
-    assert response.content
+async def test_agent_service_creates_agent():
+    with patch("app.services.agent_service.get_db") as mock_db:
+        mock_db.return_value.agents.insert_one = AsyncMock(return_value=True)
+        from app.services.agent_service import AgentService
+        service = AgentService()
+        result = await service.create({"name": "Test", "llm_provider": "openai"})
+        assert result is not None
 ```
 
 ### Mock an external service
@@ -96,11 +96,11 @@ from unittest.mock import patch
 import pytest
 
 @pytest.mark.asyncio
-async def test_stt_fallback():
+async def test_stt_returns_empty_on_error():
     with patch("services.deepgram.transcribe") as mock_stt:
         mock_stt.side_effect = Exception("API Error")
-        result = await transcribe_with_fallback(audio_data)
-        assert result.provider == "ai4bharat"
+        result = await transcribe_audio(audio_data)
+        assert result is None or result.text == ""
 ```
 
 ### Shared fixtures

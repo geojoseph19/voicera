@@ -1,15 +1,15 @@
 ---
-description: Production security hardening for Voicera covering credentials, MongoDB, MinIO, TLS, JWT secrets, Docker, firewall, secret storage, and recording retention.
+description: Production security hardening for VoicEra covering credentials, MongoDB, MinIO, TLS, JWT secrets, Docker, firewall, secret storage, and recording retention.
 ---
 
 # Security and production hardening
 
-Voicera ships with development defaults so a new operator can run the stack within minutes. None of those defaults are safe for production. This page is the hardening pass to run before any Voicera deployment becomes reachable on the internet or processes real call traffic.
+VoicEra ships with development defaults so a new operator can run the stack within minutes. None of those defaults are safe for production. This page is the hardening pass to run before any VoicEra deployment becomes reachable on the internet or processes real call traffic.
 
 The intended audience is a hosting partner or platform engineer who has already completed the [Deployment walkthrough](deployment-walkthrough.md) and now needs to close gaps before go-live.
 
 {% hint style="danger" %}
-Do not connect a Voicera deployment to live phone numbers, real users, or production telephony provider credentials until every item in the [Hardening checklist](#hardening-checklist) at the end of this page is complete.
+Do not connect a VoicEra deployment to live phone numbers, real users, or production telephony provider credentials until every item in the [Hardening checklist](#hardening-checklist) at the end of this page is complete.
 {% endhint %}
 
 ## 1. Default credentials to change
@@ -93,7 +93,7 @@ MinIO holds every call recording and transcript. Treat it like an S3 bucket cont
 
 ## 4. JWT and application secrets
 
-Voicera signs session tokens and internal API calls with secrets read from env files. Weak or shared secrets break the whole trust model.
+VoicEra signs session tokens and internal API calls with secrets read from env files. Weak or shared secrets break the whole trust model.
 
 Generate strong, unrelated values:
 

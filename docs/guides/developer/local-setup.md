@@ -1,13 +1,13 @@
 ---
-description: Set up Voicera on a developer workstation — frontend, backend, and voice server with hot reload.
+description: Set up VoicEra on a developer workstation — frontend, backend, and voice server with hot reload.
 ---
 
 # Local development setup
 
-This guide gets the three Voicera services running on your machine with hot reload. Audience: engineers extending or debugging the code.
+This guide gets the three VoicEra services running on your machine with hot reload. Audience: engineers extending or debugging the code.
 
 {% hint style="info" %}
-If you only want to try Voicera end-to-end, use the Docker Compose path in [install and run](../../quickstart/install-and-run.md). This page covers running the services directly against your editor.
+If you only want to try VoicEra end-to-end, use the Docker Compose path in [install and run](../../quickstart/install-and-run.md). This page covers running the services directly against your editor.
 {% endhint %}
 
 ## Prerequisites
@@ -49,11 +49,9 @@ cp .env.example .env.local
 Edit `voicera_frontend/.env.local`:
 
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-NEXT_PUBLIC_VOICE_SERVER_URL=http://localhost:7860
-NEXT_PUBLIC_WS_URL=ws://localhost:7860
-NEXT_PUBLIC_LOG_LEVEL=debug
-NEXT_PUBLIC_DEBUG=true
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_JOHNAIC_SERVER_URL=http://localhost:7860
+NEXT_PUBLIC_JOHNAIC_WEBSOCKET_URL=ws://localhost:7860
 ```
 
 Run the dev server:
@@ -88,7 +86,7 @@ RELOAD=true
 MONGODB_HOST=localhost
 MONGODB_PORT=27017
 
-JWT_SECRET_KEY=dev-secret-key-change-in-production
+SECRET_KEY=dev-secret-key-change-in-production
 CORS_ORIGINS=["http://localhost:3000"]
 ```
 
@@ -115,20 +113,20 @@ cp .env.example .env
 Edit `voice_2_voice_server/.env`. Minimum keys for a working cloud-only pipeline:
 
 ```env
-LOG_LEVEL=DEBUG
-DEBUG_MODE=true
-ENABLE_AUDIO_LOGGING=false
+JOHNAIC_SERVER_URL=http://localhost:7860
+JOHNAIC_WEBSOCKET_URL=ws://localhost:7860
 
-LLM_PROVIDER=openai
+VOICERA_BACKEND_URL=http://localhost:8000
+INTERNAL_API_KEY=your-internal-api-key
+
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_SECURE=false
+
 OPENAI_API_KEY=sk-...
-
-STT_PROVIDER=deepgram
 DEEPGRAM_API_KEY=...
-
-TTS_PROVIDER=cartesia
 CARTESIA_API_KEY=...
-
-BACKEND_API_URL=http://localhost:8000
 ```
 
 Run the server:

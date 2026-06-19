@@ -61,7 +61,7 @@ Restart only after fixing the downstream — restart loops mask the root cause.
 Error response from daemon: Ports are not available: listen tcp 0.0.0.0:8000: bind: address already in use
 ```
 
-**Cause:** Another process (often a previous Voicera run, a local dev server, or an unrelated service) holds the port.
+**Cause:** Another process (often a previous VoicEra run, a local dev server, or an unrelated service) holds the port.
 
 **Fix:**
 
@@ -76,7 +76,7 @@ kill -9 <PID>
 # ports:
 #   - "8001:8000"
 
-# A repo-provided shortcut frees all Voicera ports
+# A repo-provided shortcut frees all VoicEra ports
 make stop-all-ports
 ```
 
@@ -214,7 +214,7 @@ docker network inspect voicera_mono_repository_voicera_network
 docker-compose exec backend nslookup mongodb
 docker-compose exec backend ping -c 2 mongodb
 
-# Nuclear option: rebuild the network
+# Last resort: rebuild the network
 docker-compose down
 docker network prune -f
 docker-compose up -d
@@ -340,7 +340,7 @@ docker update --memory 4g voicera_backend
 # Service-by-service health
 curl http://localhost:8000/health
 curl http://localhost:7860/health
-curl http://localhost:9001/minio/health/live
+curl http://localhost:9000/minio/health/live
 ```
 
 {% hint style="info" %}

@@ -43,8 +43,8 @@ Copy `voice_2_voice_server/.env.example` (or set env vars directly). Selected va
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `VOBIZ_API_BASE` | Yes | - | Vobiz API base URL |
-| `VOBIZ_AUTH_ID` | Yes* | - | Vobiz account auth ID (production keys live in Backend Integrations) |
-| `VOBIZ_AUTH_TOKEN` | Yes* | - | Vobiz account auth token (production keys live in Backend Integrations) |
+| `VOBIZ_AUTH_ID` | No (dev only) | - | Single-tenant dev fallback. Production credentials belong in **Dashboard → Integrations**. |
+| `VOBIZ_AUTH_TOKEN` | No (dev only) | - | Single-tenant dev fallback. Production credentials belong in **Dashboard → Integrations**. |
 | `VOBIZ_CALLER_ID` | No | - | Default outbound caller ID |
 | `JOHNAIC_SERVER_URL` | Yes | - | Public HTTPS base for telephony webhooks |
 | `JOHNAIC_WEBSOCKET_URL` | Yes | - | Public `wss://` base for the audio WebSocket |

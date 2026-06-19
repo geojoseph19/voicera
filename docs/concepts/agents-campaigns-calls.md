@@ -1,13 +1,13 @@
 ---
-description: The Voicera data model — how agents, campaigns, and calls relate.
+description: The VoicEra data model — how agents, campaigns, and calls relate.
 ---
 
 # Agents, campaigns, and calls
 
-This page explains Voicera's three primary domain objects — **agents**, **campaigns** (also called batches), and **calls** (meetings) — and how they relate. It is the mental model that the dashboard, REST API, and voice server all share.
+This page explains VoicEra's three primary domain objects — **agents**, **campaigns** (also called batches), and **calls** (meetings) — and how they relate. It is the mental model that the dashboard, REST API, and voice server all share.
 
 {% hint style="info" %}
-In Voicera, an "agent" is a software configuration, **not** a human employee. It defines how the voice bot behaves on a call.
+In VoicEra, an "agent" is a software configuration, **not** a human employee. It defines how the voice bot behaves on a call.
 {% endhint %}
 
 ## At a glance
@@ -224,10 +224,10 @@ See [../guides/operator/dashboard-tour.md](../guides/operator/dashboard-tour.md)
 
 | Object | Key endpoints |
 | --- | --- |
-| Agent | `GET/POST/PUT/DELETE /agents`, `GET /agents/{id}/config` |
-| Campaign | `GET/POST/PUT/DELETE /campaigns`, `POST /campaigns/{id}/launch`, `POST /campaigns/{id}/pause` |
-| Call | `GET /call-logs`, `GET /call-logs/{id}`, `GET /call-logs/campaign/{id}` |
-| Recording | `GET /call-recordings/{call_id}/download`, `GET /call-recordings/{call_id}/transcript` |
+| Agent | `GET/POST/PUT/DELETE /api/v1/agents`, `GET /api/v1/agents/config/id/{agent_id}` |
+| Campaign | `GET/POST/PUT/DELETE /api/v1/campaigns`, `POST /api/v1/campaigns/{id}/launch`, `POST /api/v1/campaigns/{id}/pause` |
+| Call | `GET /api/v1/meetings`, `GET /api/v1/meetings/{id}` |
+| Recording | `GET /api/v1/call-recordings/{call_id}/download`, `GET /api/v1/call-recordings/{call_id}/transcript` |
 
 Full reference: [../reference/rest-api.md](../reference/rest-api.md).
 

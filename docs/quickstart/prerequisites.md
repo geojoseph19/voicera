@@ -1,10 +1,10 @@
 ---
-description: Checklist of accounts, infrastructure, and network items needed before installing Voicera.
+description: Checklist of accounts, infrastructure, and network items needed before installing VoicEra.
 ---
 
 # Prerequisites
 
-Run through this checklist before installing Voicera. It applies to operators, programme owners, and hosting partners preparing a server for development or production.
+Run through this checklist before installing VoicEra. It applies to operators, programme owners, and hosting partners preparing a server for development or production.
 
 {% hint style="info" %}
 Assign a responsible party (operator, programme owner, or hosting partner) for each item. Anything marked as production-only can be skipped for a local test install.

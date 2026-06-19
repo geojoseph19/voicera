@@ -1,5 +1,5 @@
 ---
-description: General Voicera failures — login, dashboard, JWT auth, MongoDB, MinIO, and services that refuse to start.
+description: General VoicEra failures — login, dashboard, JWT auth, MongoDB, MinIO, and services that refuse to start.
 ---
 
 # Common Issues
@@ -88,12 +88,12 @@ If you redeploy with a fresh MongoDB volume, all users are wiped. Re-seed before
 
 ```bash
 # Issue a fresh token
-curl -X POST http://localhost:8000/auth/login \
+curl -X POST http://localhost:8000/api/v1/users/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"password"}'
 
 # Use the token explicitly
-curl -H "Authorization: Bearer <token>" http://localhost:8000/agents
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/agents
 ```
 
 If the backend was restarted with a different `JWT_SECRET_KEY`, all previously issued tokens are invalid — log out and log in again. See [../reference/environment-variables.md](../reference/environment-variables.md) for the JWT-related vars.
@@ -281,7 +281,7 @@ docker-compose ps
 # Individual probes
 curl http://localhost:8000/health           # Backend
 curl http://localhost:7860/health           # Voice server
-curl http://localhost:9001/minio/health/live # MinIO
+curl http://localhost:9000/minio/health/live # MinIO
 docker exec voicera_mongodb mongosh --eval "db.adminCommand('ping')"
 ```
 

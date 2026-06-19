@@ -1,5 +1,5 @@
 ---
-description: Canonical port map, service URLs, and pointer to default credentials for a stock Voicera deployment.
+description: Canonical port map, service URLs, and pointer to default credentials for a stock VoicEra deployment.
 ---
 
 # Ports and Defaults

@@ -4,7 +4,7 @@ description: Dense one-page reference card with every REST endpoint, common shel
 
 # Endpoints and Commands Cheatsheet
 
-A consolidated quick-reference for the Voicera platform. Use it as a lookup for endpoints, common curl calls, and routine operator commands. For full schemas, see Swagger at `http://<host>:8000/docs` and `http://<host>:7860/docs`.
+A consolidated quick-reference for the VoicEra platform. Use it as a lookup for endpoints, common curl calls, and routine operator commands. For full schemas, see Swagger at `http://<host>:8000/docs` and `http://<host>:7860/docs`.
 
 {% hint style="info" %}
 **Source of truth:** Swagger / OpenAPI. Router registration lives in `voicera_backend/app/main.py` and `voice_2_voice_server/api/server.py`.
@@ -67,7 +67,7 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 | GET | `/api/v1/agents/{agent_id}` | Get agent |
 | PUT | `/api/v1/agents/{agent_id}` | Update agent |
 | DELETE | `/api/v1/agents/{agent_id}` | Delete agent |
-| GET | `/api/v1/agents/config/{agent_id}` | Runtime config (internal) |
+| GET | `/api/v1/agents/config/id/{agent_id}` | Runtime config (internal, `X-API-Key`) |
 | GET | `/api/v1/agents/by-phone/{phone}` | Resolve by phone |
 
 ## Campaigns, audience, batches
@@ -201,7 +201,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 ### First-time install
 
 ```bash
-git clone https://github.com/voicera/voicera_mono_repository.git
+git clone https://github.com/COSS-India/voicera_mono_repository.git
 cd voicera_mono_repository
 
 cp voicera_backend/env.example voicera_backend/.env
@@ -320,39 +320,29 @@ Content-Type: application/json
 Accept: application/json
 ```
 
-Rate-limit response headers:
-
-```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1674007200
-```
-
 ---
 
 ## Common response shapes
 
 ### Success
 
-```json
-{
-  "success": true,
-  "data": { ... },
-  "timestamp": "2026-06-19T10:30:00Z"
-}
-```
+Success responses return the resource object directly — no wrapper envelope.
 
 ### Error
 
+FastAPI returns a standard `detail` field on errors:
+
+```json
+{ "detail": "Agent not found" }
+```
+
+Validation errors (422):
+
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable message",
-    "details": "Additional context"
-  },
-  "timestamp": "2026-06-19T10:30:00Z"
+  "detail": [
+    { "loc": ["body", "name"], "msg": "field required", "type": "value_error.missing" }
+  ]
 }
 ```
 

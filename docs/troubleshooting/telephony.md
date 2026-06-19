@@ -196,7 +196,7 @@ If everything in the matrix is green and calls still fail, the issue is no longe
 - [common-issues.md](common-issues.md) — login, dashboard, MongoDB, MinIO
 - [voice-and-audio.md](voice-and-audio.md) — STT, TTS, audio quality
 - [deployment.md](deployment.md) — Docker, TLS, nginx, env vars
-- [../concepts/telephony-model.md](../concepts/telephony-model.md) — how calls flow through Voicera
+- [../concepts/telephony-model.md](../concepts/telephony-model.md) — how calls flow through VoicEra
 - [../guides/deployment/public-voice-urls.md](../guides/deployment/public-voice-urls.md) — public URL setup
 - [../services/integrations.md](../services/integrations.md) — Integrations service reference
 - [../reference/rest-api.md](../reference/rest-api.md) — backend API

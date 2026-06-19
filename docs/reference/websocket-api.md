@@ -4,7 +4,7 @@ description: WebSocket protocol used by the voice server to stream audio between
 
 # WebSocket API Reference
 
-The Voicera voice server accepts a single bidirectional WebSocket per call. Telephony providers (Vobiz, Plivo) and the in-browser test client all speak the same JSON-framed protocol, with a small set of message types in each direction.
+The VoicEra voice server accepts a single bidirectional WebSocket per call. Telephony providers (Vobiz, Plivo) and the in-browser test client all speak the same JSON-framed protocol, with a small set of message types in each direction.
 
 {% hint style="info" %}
 **Code reference:** `voice_2_voice_server/api/server.py` (`websocket_endpoint`) and `voice_2_voice_server/serializer/vobiz_serializer.py`. For the browser test, see `voice_2_voice_server/docs/talk-on-browser-feature.md`.
@@ -17,7 +17,7 @@ The Voicera voice server accepts a single bidirectional WebSocket per call. Tele
 | `/agent/{agent_id}` | Vobiz inbound/outbound and browser test |
 | `/plivo/agent/{agent_id}` | Plivo inbound/outbound |
 
-The `agent_id` is the UUID of a Voicera agent. The voice server looks up the agent's configuration (LLM, STT, TTS, prompt, language) from the backend when the WebSocket opens.
+The `agent_id` is the UUID of a VoicEra agent. The voice server looks up the agent's configuration (LLM, STT, TTS, prompt, language) from the backend when the WebSocket opens.
 
 ## Transport
 

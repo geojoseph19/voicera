@@ -1,10 +1,10 @@
 ---
-description: How data moves through Voicera during calls, configuration, and analytics.
+description: How data moves through VoicEra during calls, configuration, and analytics.
 ---
 
 # Data flow
 
-This page traces the main data paths in Voicera: voice calls, agent and campaign creation, recording retrieval, and analytics. It is aimed at engineers and operators who want to understand where each piece of data is produced, transformed, and stored.
+This page traces the main data paths in VoicEra: voice calls, agent and campaign creation, recording retrieval, and analytics. It is aimed at engineers and operators who want to understand where each piece of data is produced, transformed, and stored.
 
 {% hint style="info" %}
 Pair this page with [architecture.md](architecture.md) (where services live) and [voice-pipeline.md](voice-pipeline.md) (how the pipeline processes audio frame-by-frame).
@@ -225,7 +225,7 @@ Voice server ↔ backend uses a shared `INTERNAL_API_KEY` header instead of JWT,
 
 ## Failure modes
 
-| Failure | What Voicera does |
+| Failure | What VoicEra does |
 | --- | --- |
 | STT transient error | Pipecat retries via the provider client; persistent failure logs and continues, may trigger fallback prompt. |
 | LLM slow response | `KenpathLLM` plays `hold_messages` after `hold_message_timeout_seconds`. Other providers stream as fast as the API permits. |

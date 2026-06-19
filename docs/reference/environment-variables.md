@@ -1,10 +1,10 @@
 ---
-description: Canonical reference for every environment variable used across Voicera services, grouped by service with defaults and requirement flags.
+description: Canonical reference for every environment variable used across VoicEra services, grouped by service with defaults and requirement flags.
 ---
 
 # Environment Variables
 
-Every Voicera service is configured through environment variables, typically loaded from a per-service `.env` file. This page is the canonical list. For port-level defaults see [ports-and-defaults.md](ports-and-defaults.md); for credentials, see [../quickstart/default-credentials.md](../quickstart/default-credentials.md).
+Every VoicEra service is configured through environment variables, typically loaded from a per-service `.env` file. This page is the canonical list. For port-level defaults see [ports-and-defaults.md](ports-and-defaults.md); for credentials, see [../quickstart/default-credentials.md](../quickstart/default-credentials.md).
 
 {% hint style="warning" %}
 **Vobiz Auth ID / Token are not env vars in production.** They are stored per-organization in the database via **Dashboard -> Integrations** and consumed at call time by `fetch_integration_key(org_id, ...)`. The env entries below exist only for legacy single-tenant dev setups. See [../concepts/telephony-model.md](../concepts/telephony-model.md).
@@ -32,35 +32,26 @@ In Docker Compose deployments the same files are mounted via `env_file:` in `doc
 |------|---------|---------|----------|-------------|
 | `MONGODB_HOST` | backend | `mongodb` (Docker) / `localhost` | yes | MongoDB hostname |
 | `MONGODB_PORT` | backend | `27017` | yes | MongoDB port |
-| `MONGODB_USER` | backend | `admin` | yes | Root username |
-| `MONGODB_PASSWORD` | backend | `admin123` | yes | Root password — change in production |
+| `MONGODB_USER` | backend | `admin` | yes | MongoDB username — change in production |
+| `MONGODB_PASSWORD` | backend | `admin123` | yes | MongoDB password — change in production |
 | `MONGODB_DATABASE` | backend | `voicera` | yes | Database name |
-| `MONGODB_AUTH_SOURCE` | backend | `admin` | no | Auth database |
-| `MONGODB_MAX_POOL_SIZE` | backend | `50` | no | Connection pool size |
-| `MONGODB_TIMEOUT_MS` | backend | `5000` | no | Connection timeout |
+| `MONGODB_AUTH_SOURCE` | backend | `admin` | no | Authentication database |
 
 ### Object storage (MinIO)
 
 | Name | Service | Default | Required | Description |
 |------|---------|---------|----------|-------------|
 | `MINIO_ENDPOINT` | backend | `minio:9000` | yes | MinIO host:port |
-| `MINIO_ACCESS_KEY` | backend | `minioadmin` | yes | Root access key |
-| `MINIO_SECRET_KEY` | backend | `minioadmin` | yes | Root secret key — change in production |
-| `MINIO_SECURE` | backend | `false` | no | Use HTTPS (`true` in production) |
-| `MINIO_REGION` | backend | `us-east-1` | no | Region label |
-| `MINIO_BUCKET_RECORDINGS` | backend | `recordings` | no | Recordings bucket |
-| `MINIO_BUCKET_TRANSCRIPTS` | backend | `transcripts` | no | Transcripts bucket |
+| `MINIO_ACCESS_KEY` | backend | `minioadmin` | yes | Access key — change in production |
+| `MINIO_SECRET_KEY` | backend | `minioadmin` | yes | Secret key — change in production |
+| `MINIO_SECURE` | backend | `false` | no | Set `true` when MinIO is behind TLS |
 
 ### Security and auth
 
 | Name | Service | Default | Required | Description |
 |------|---------|---------|----------|-------------|
 | `SECRET_KEY` | backend | `secret_key` | yes | JWT signing secret — must be changed in production |
-| `JWT_ALGORITHM` | backend | `HS256` | no | Signing algorithm |
-| `JWT_EXPIRATION_HOURS` | backend | `24` | no | Access token TTL |
-| `JWT_REFRESH_EXPIRATION_DAYS` | backend | `30` | no | Refresh token TTL |
 | `INTERNAL_API_KEY` | backend | – | yes | Shared secret for voice-server-to-backend calls. Generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `CORS_ORIGINS` | backend | `["http://localhost:3000"]` | no | JSON list of allowed origins |
 | `DEBUG` | backend | `False` | no | Enable verbose error responses |
 
 ### Email (Mailtrap)
@@ -69,7 +60,7 @@ In Docker Compose deployments the same files are mounted via `env_file:` in `doc
 |------|---------|---------|----------|-------------|
 | `MAILTRAP_API_TOKEN` | backend | – | no | Mailtrap API token for transactional email |
 | `MAILTRAP_FROM_EMAIL` | backend | `noreply@voicera.com` | no | From address |
-| `MAILTRAP_FROM_NAME` | backend | `Voicera` | no | From name |
+| `MAILTRAP_FROM_NAME` | backend | `VoicEra` | no | From name |
 | `FRONTEND_URL` | backend | `http://localhost:3000` | no | Used in password-reset links |
 
 ### Vobiz (legacy / dev only)
@@ -87,13 +78,13 @@ In Docker Compose deployments the same files are mounted via `env_file:` in `doc
 |------|---------|---------|----------|-------------|
 | `CHROMA_BASE_DIR` | backend | `voicera_backend/rag_system/chroma_data` | no | Override Chroma persistence root |
 
-### API server
+### Application
 
 | Name | Service | Default | Required | Description |
 |------|---------|---------|----------|-------------|
-| `HOST` | backend | `0.0.0.0` | no | Bind address |
-| `PORT` | backend | `8000` | no | Listen port |
-| `LOG_LEVEL` | backend | `INFO` | no | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `FRONTEND_URL` | backend | `http://localhost:3000` | no | Used in password-reset email links |
+| `VOICE_SERVER_URL` | backend | `http://localhost:7860` | no | Voice server URL for outbound call proxy; also accepts `JOHNAIC_SERVER_URL` as fallback |
+| `BATCH_SCHEDULER_POLL_SECONDS` | backend | `5` | no | Polling interval for the outbound batch scheduler |
 
 ---
 
@@ -132,46 +123,25 @@ In Docker Compose deployments the same files are mounted via `env_file:` in `doc
 | `MINIO_SECRET_KEY` | voice server | `minioadmin` | yes | Secret key |
 | `MINIO_SECURE` | voice server | `false` | no | Use HTTPS |
 
-### LLM providers
+### Provider API keys (fallback)
+
+Provider selection is per-agent in MongoDB. Per-org keys are stored in **Dashboard → Integrations** and take priority. The env vars below are fallbacks for local dev or single-tenant installs.
 
 | Name | Service | Default | Required | Description |
 |------|---------|---------|----------|-------------|
-| `LLM_PROVIDER` | voice server | `openai` | yes | `openai`, `anthropic`, `local`, etc. |
-| `OPENAI_API_KEY` | voice server | – | conditional | Required when `LLM_PROVIDER=openai` |
-| `OPENAI_MODEL` | voice server | `gpt-4` | no | Model name |
-| `OPENAI_TEMPERATURE` | voice server | `0.7` | no | Sampling temperature |
-| `OPENAI_MAX_TOKENS` | voice server | `200` | no | Response cap |
-| `ANTHROPIC_API_KEY` | voice server | – | conditional | Required when `LLM_PROVIDER=anthropic` |
-| `ANTHROPIC_MODEL` | voice server | `claude-3-opus` | no | Model name |
-| `LOCAL_LLM_API_BASE` | voice server | – | conditional | Base URL for self-hosted LLM |
-| `LOCAL_LLM_MODEL` | voice server | – | conditional | Local model id |
-
-### STT providers
-
-| Name | Service | Default | Required | Description |
-|------|---------|---------|----------|-------------|
-| `STT_PROVIDER` | voice server | `deepgram` | yes | `deepgram`, `google`, `ai4bharat` |
-| `DEEPGRAM_API_KEY` | voice server | – | conditional | Required for Deepgram |
-| `DEEPGRAM_MODEL` | voice server | `nova-2` | no | Model name |
-| `DEEPGRAM_LANGUAGE` | voice server | `en` | no | Language code |
-| `GOOGLE_CLOUD_STT_CREDENTIALS` | voice server | – | conditional | Path to service-account JSON |
-| `STT_SERVICE_URL` | voice server | `http://ai4bharat_stt_server:8001` | conditional | AI4Bharat STT URL |
-| `STT_LANGUAGE` | voice server | `hi` | no | AI4Bharat language code |
-| `STT_SAMPLE_RATE` | voice server | `16000` | no | Sample rate in Hz |
-
-### TTS providers
-
-| Name | Service | Default | Required | Description |
-|------|---------|---------|----------|-------------|
-| `TTS_PROVIDER` | voice server | `cartesia` | yes | `cartesia`, `google`, `ai4bharat`, `elevenlabs` |
-| `CARTESIA_API_KEY` | voice server | – | conditional | Required for Cartesia |
-| `CARTESIA_VOICE` | voice server | `english_male` | no | Voice id |
-| `CARTESIA_LANGUAGE` | voice server | `en` | no | Language code |
-| `CARTESIA_SAMPLE_RATE` | voice server | `16000` | no | Output sample rate |
-| `GOOGLE_CLOUD_TTS_CREDENTIALS` | voice server | – | conditional | Path to service-account JSON |
-| `TTS_SERVICE_URL` | voice server | `http://ai4bharat_tts_server:8002` | conditional | AI4Bharat TTS URL |
-| `TTS_LANGUAGE` | voice server | `hi` | no | AI4Bharat language code |
-| `TTS_SPEAKER` | voice server | `female` | no | AI4Bharat speaker |
+| `OPENAI_API_KEY` | voice server | – | conditional | Fallback when org has no OpenAI Integration |
+| `DEEPGRAM_API_KEY` | voice server | – | conditional | Fallback Deepgram key |
+| `SARVAM_API_KEY` | voice server | – | conditional | Fallback Sarvam key |
+| `ELEVENLABS_API_KEY` | voice server | – | conditional | Fallback ElevenLabs key |
+| `XAI_API_KEY` | voice server | – | conditional | Grok (xAI) key |
+| `BHASHINI_API_KEY` | voice server | – | conditional | Bhashini STT/TTS key |
+| `VLLM_API_KEY` | voice server | – | conditional | vLLM server API key |
+| `VLLM_BASE_URL` | voice server | – | conditional | vLLM base URL |
+| `GOOGLE_STT_CREDENTIALS_PATH` | voice server | `credentials/google_stt.json` | conditional | Google STT service-account JSON |
+| `GOOGLE_TTS_CREDENTIALS_PATH` | voice server | `credentials/google_tts.json` | conditional | Google TTS service-account JSON |
+| `AI4BHARAT_STT_URL` | voice server | – | conditional | Local AI4Bharat STT base URL |
+| `AI4BHARAT_TTS_URL` | voice server | – | conditional | Local AI4Bharat TTS base URL |
+| `KENPATH_JWT_PRIVATE_KEY_PATH` | voice server | – | conditional | RS256 private key for Kenpath Vistaar |
 
 ### Server, audio, logging
 
@@ -179,12 +149,8 @@ In Docker Compose deployments the same files are mounted via `env_file:` in `doc
 |------|---------|---------|----------|-------------|
 | `HOST` | voice server | `0.0.0.0` | no | Bind address |
 | `PORT` | voice server | `7860` | no | Listen port |
-| `AUDIO_SAMPLE_RATE` | voice server | `16000` | no | Pipeline sample rate (Hz) |
-| `AUDIO_CHANNELS` | voice server | `1` | no | Mono |
-| `AUDIO_FORMAT` | voice server | `pcm` | no | Codec |
-| `SESSION_TIMEOUT_MINUTES` | voice server | `30` | no | Max call duration |
+| `SAMPLE_RATE` | voice server | `8000` | no | Telephony wire sample rate: `8000` = µ-law, `16000` = L16 PCM |
 | `MAX_CONCURRENT_CALLS` | voice server | `100` | no | Concurrency cap |
-| `ENABLE_CALL_RECORDING` | voice server | `true` | no | Persist WAV to MinIO |
 | `LOG_LEVEL` | voice server | `INFO` | no | Logging level |
 | `DEBUG_MODE` | voice server | `false` | no | Verbose pipeline logs |
 | `ENABLE_AUDIO_LOGGING` | voice server | `false` | no | Log raw audio (CPU intensive) |
@@ -197,20 +163,11 @@ All public frontend env vars must be prefixed `NEXT_PUBLIC_` to be exposed to th
 
 | Name | Service | Default | Required | Description |
 |------|---------|---------|----------|-------------|
-| `NEXT_PUBLIC_API_BASE_URL` | frontend | `http://localhost:8000` | yes | Backend REST base URL |
-| `NEXT_PUBLIC_API_TIMEOUT` | frontend | `30000` | no | Request timeout in ms |
-| `NEXT_PUBLIC_VOICE_SERVER_URL` | frontend | `http://localhost:7860` | yes | Voice server base URL |
-| `NEXT_PUBLIC_WS_URL` | frontend | `ws://localhost:7860` | yes | Voice server WebSocket URL |
-| `NEXT_PUBLIC_JOHNAIC_SERVER_URL` | frontend | – | yes (prod) | Public voice server URL used when creating agents |
-| `NEXT_PUBLIC_AUTH_ENABLED` | frontend | `true` | no | Enable login UI |
-| `NEXT_PUBLIC_JWT_STORAGE_KEY` | frontend | `voicera_token` | no | localStorage key |
-| `NEXT_PUBLIC_APP_NAME` | frontend | `VoicEra` | no | Display name |
-| `NEXT_PUBLIC_APP_VERSION` | frontend | `1.0.0` | no | Display version |
-| `NEXT_PUBLIC_LOG_LEVEL` | frontend | `info` | no | `debug`, `info`, `warn`, `error` |
-| `NEXT_PUBLIC_FEATURE_VOICE_CALLS` | frontend | `true` | no | Toggle browser test |
-| `NEXT_PUBLIC_FEATURE_ANALYTICS` | frontend | `true` | no | Toggle analytics tab |
-| `NEXT_PUBLIC_GA_TRACKING_ID` | frontend | – | no | Google Analytics id |
-| `NEXT_PUBLIC_SENTRY_DSN` | frontend | – | no | Sentry DSN |
+| `NEXT_PUBLIC_API_URL` | frontend | `http://localhost:8000` | yes | Backend REST base URL (browser-side) |
+| `API_URL` | frontend | – | no | Backend URL for server-side routes; falls back to `NEXT_PUBLIC_API_URL` |
+| `NEXT_PUBLIC_JOHNAIC_SERVER_URL` | frontend | – | yes (prod) | Public HTTPS voice server URL — used for Vobiz answer URLs and browser test |
+| `NEXT_PUBLIC_JOHNAIC_WEBSOCKET_URL` | frontend | – | no | Explicit `wss://` base for **Test on Browser**; derived from `NEXT_PUBLIC_JOHNAIC_SERVER_URL` if absent |
+| `VOICE_SERVER_URL` | frontend | `http://localhost:7860` | no | Voice server URL for server-side Next.js routes |
 
 ---
 
@@ -218,32 +175,22 @@ All public frontend env vars must be prefixed `NEXT_PUBLIC_` to be exposed to th
 
 | Name | Service | Default | Required | Description |
 |------|---------|---------|----------|-------------|
-| `HOST` | ai4bharat-stt | `0.0.0.0` | no | Bind address |
 | `PORT` | ai4bharat-stt | `8001` | no | Listen port |
-| `WORKERS` | ai4bharat-stt | `4` | no | Worker processes |
-| `MODEL_NAME` | ai4bharat-stt | `indic-conformer-hi` | yes | Model id |
-| `MODEL_PATH` | ai4bharat-stt | `/models` | yes | Path to downloaded model |
-| `DEVICE` | ai4bharat-stt | `cuda` | no | `cuda` or `cpu` |
-| `BATCH_SIZE` | ai4bharat-stt | `32` | no | Inference batch size |
-| `SAMPLE_RATE` | ai4bharat-stt | `16000` | no | Expected sample rate |
-| `LOG_LEVEL` | ai4bharat-stt | `INFO` | no | Logging level |
+| `INDIC_NEMO_PATH` | ai4bharat-stt | – | yes | On-disk path to the main Indic NeMo checkpoint |
+| `BHILI_ENABLE` | ai4bharat-stt | `no` | no | `yes` to load the Bhili checkpoint |
+| `BHILI_NEMO_PATH` | ai4bharat-stt | – | conditional | On-disk path to the Bhili checkpoint |
+| `HF_TOKEN` | ai4bharat-stt | – | no | HuggingFace token for gated checkpoints |
+
+For the batch size and timeout constants (`MAX_BATCH_SIZE=16`, `BATCH_TIMEOUT=0.1s`) see `ai4bharat_stt_server/server.py`.
 
 ## AI4Bharat TTS (`ai4bharat_tts_server/.env`)
 
 | Name | Service | Default | Required | Description |
 |------|---------|---------|----------|-------------|
-| `HOST` | ai4bharat-tts | `0.0.0.0` | no | Bind address |
 | `PORT` | ai4bharat-tts | `8002` | no | Listen port |
-| `WORKERS` | ai4bharat-tts | `2` | no | Worker processes |
-| `MODEL_NAME` | ai4bharat-tts | `indic-parler-hi` | yes | Model id |
-| `MODEL_PATH` | ai4bharat-tts | `/models` | yes | Path to downloaded model |
-| `DEVICE` | ai4bharat-tts | `cuda` | no | `cuda` or `cpu` |
-| `SAMPLE_RATE` | ai4bharat-tts | `16000` | no | Output sample rate |
-| `SPEED` | ai4bharat-tts | `1.0` | no | Synthesis speed multiplier |
-| `ENABLE_CACHING` | ai4bharat-tts | `true` | no | Cache synthesised clips |
-| `CACHE_SIZE_MB` | ai4bharat-tts | `500` | no | Cache budget |
-| `CACHE_TTL_HOURS` | ai4bharat-tts | `24` | no | Cache TTL |
-| `LOG_LEVEL` | ai4bharat-tts | `INFO` | no | Logging level |
+| `AUDIO_SAMPLE_RATE` | ai4bharat-tts | `44100` | no | Output sample rate (Hz); Parler TTS default |
+
+Refer to `ai4bharat_tts_server/.env.example` for the active variable set — checkpoint and batching knobs vary by deployment.
 
 ---
 
@@ -263,9 +210,9 @@ openssl rand -base64 32
 - All `Required: yes` variables are set.
 - `INTERNAL_API_KEY` is identical between backend and voice server.
 - `MONGODB_PASSWORD`, `MINIO_SECRET_KEY`, `SECRET_KEY` are changed from defaults before any exposure to a network.
-- `CORS_ORIGINS` restricts to your real frontend origin in production.
+- CORS `allow_origins` in `voicera_backend/app/main.py` is restricted to your real frontend origin (currently hardcoded as `["*"]` — tighten before production).
 - `JOHNAIC_*` URLs are HTTPS / WSS in production.
-- API provider keys (OpenAI, Deepgram, Cartesia) belong to non-trial accounts in production.
+- AI provider keys (OpenAI, Deepgram, Cartesia) belong to non-trial accounts in production.
 
 For hardening guidance, see [../guides/deployment/security-hardening.md](../guides/deployment/security-hardening.md).
 

@@ -1,10 +1,10 @@
 ---
-description: Complete REST API reference for the Voicera backend, grouped by resource, with request/response examples.
+description: Complete REST API reference for the VoicEra backend, grouped by resource, with request/response examples.
 ---
 
 # REST API Reference
 
-Voicera exposes its REST API from the backend service. This page is a curated reference grouped by resource. For the canonical, always-current schema, browse Swagger UI at `http://<host>:8000/docs` or fetch the OpenAPI spec from `http://<host>:8000/openapi.json`.
+VoicEra exposes its REST API from the backend service. This page is a grouped reference for the most common operations. For the complete, always-current schema, use Swagger UI at `http://<host>:8000/docs` or fetch the OpenAPI spec from `http://<host>:8000/openapi.json`.
 
 {% hint style="info" %}
 **Swagger is the source of truth.** Hand-written documentation can drift; the OpenAPI spec is generated from the FastAPI routes in `voicera_backend/app/main.py`. When in doubt, check `/docs`.
@@ -31,21 +31,27 @@ Accept: application/json
 
 Service-to-service calls (voice server to backend) use an internal API key configured via the `INTERNAL_API_KEY` environment variable. See [environment-variables.md](environment-variables.md).
 
-## Response envelope
+## Response format
 
-Most success responses return the resource directly. Errors follow this shape:
+Success responses return the resource object directly. Error responses follow FastAPI's standard `HTTPException` shape:
+
+```json
+{ "detail": "Invalid credentials" }
+```
+
+Validation errors (422) return a list of field-level errors:
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "AUTH_001",
-    "message": "Invalid credentials",
-    "details": "Email not found"
-  },
-  "timestamp": "2026-06-19T10:30:00Z"
+  "detail": [
+    { "loc": ["body", "email"], "msg": "field required", "type": "value_error.missing" }
+  ]
 }
 ```
+
+{% hint style="info" %}
+The canonical response schema for each endpoint is in Swagger at `/docs`. The examples in this page show representative fields only.
+{% endhint %}
 
 ## Status codes
 
@@ -205,7 +211,7 @@ Patch any subset of fields.
 
 Delete an agent. `204 No Content`.
 
-### GET /api/v1/agents/config/{agent_id}
+### GET /api/v1/agents/config/id/{agent_id}
 
 Internal endpoint used by the voice server to load runtime config when a call is answered. Requires `INTERNAL_API_KEY`.
 
@@ -404,40 +410,6 @@ The voice server is a separate FastAPI app on port `7860`. Most traffic is WebSo
 ```
 
 ---
-
-## Error codes
-
-| Code | HTTP | Description |
-|------|------|-------------|
-| AUTH_001 | 401 | Invalid credentials |
-| AUTH_002 | 401 | Token expired |
-| AUTH_003 | 401 | Token invalid |
-| AUTH_004 | 403 | Permission denied |
-| AGENT_001 | 404 | Agent not found |
-| AGENT_002 | 409 | Agent already exists |
-| CAMPAIGN_001 | 404 | Campaign not found |
-| CAMPAIGN_002 | 409 | Cannot transition campaign state |
-| CALL_001 | 404 | Call log not found |
-| INTEGRATION_001 | 404 | Integration not found |
-| SERVER_001 | 500 | Internal server error |
-
----
-
-## Rate limiting
-
-The default deployment applies these limits per IP:
-
-- General endpoints — 100 req/min
-- Auth endpoints — 10 req/min
-- Upload endpoints — 10 MB/min
-
-Responses include:
-
-```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1674007200
-```
 
 ## Next steps
 

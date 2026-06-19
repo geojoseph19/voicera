@@ -1,10 +1,10 @@
 ---
-description: Verify a fresh Voicera install with a browser test and an end-to-end phone call.
+description: Verify a fresh VoicEra install with a browser test and an end-to-end phone call.
 ---
 
 # First call
 
-Walk-through for operators and programme managers to confirm Voicera is healthy after install. Run the browser test first — it isolates voice and AI configuration from telephony.
+Walk-through for operators and programme managers to confirm VoicEra is healthy after install. Run the browser test first — it isolates voice and AI configuration from telephony.
 
 ## 1. Confirm services are alive
 

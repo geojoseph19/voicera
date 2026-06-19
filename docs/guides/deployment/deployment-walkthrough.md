@@ -1,10 +1,10 @@
 ---
-description: Step-by-step Voicera deployment for a hosting partner, with what each step does and how to know it worked.
+description: Step-by-step VoicEra deployment for a hosting partner, with what each step does and how to know it worked.
 ---
 
 # Deployment walkthrough
 
-A hosting partner uses this guide to bring Voicera online with Docker. Operators oversee the result. Complete the [Prerequisites](../../quickstart/prerequisites.md) checklist before you begin.
+A hosting partner uses this guide to bring VoicEra online with Docker. Operators oversee the result. Complete the [Prerequisites](../../quickstart/prerequisites.md) checklist before you begin.
 
 Each step lists **what you do**, **what it means**, and **success looks like**.
 
@@ -103,7 +103,7 @@ Default development credentials are listed in [Default credentials](../../quicks
 | **Means** | The provider knows where to send incoming call webhooks |
 | **Success** | An inbound call reaches the agent's voice |
 
-Voicera usually sets this automatically when the agent is created from the dashboard. Confirm it manually if the provider portal allows.
+VoicEra usually sets this automatically when the agent is created from the dashboard. Confirm it manually if the provider portal allows.
 
 ## Stop and restart
 

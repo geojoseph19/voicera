@@ -1,10 +1,10 @@
 ---
-description: Default development credentials shipped with Voicera and how to log in for the first time.
+description: Default development credentials shipped with VoicEra and how to log in for the first time.
 ---
 
 # Default credentials
 
-Reference for the development defaults baked into a fresh Voicera install. Use these only for first-run access; rotate them before exposing the stack to anyone else.
+Reference for the development defaults baked into a fresh VoicEra install. Use these only for first-run access; rotate them before exposing the stack to anyone else.
 
 {% hint style="danger" %}
 Every credential on this page is a known public default. Change all of them before production go-live. See [security hardening](../guides/deployment/security-hardening.md).

@@ -1,10 +1,10 @@
 ---
-description: Plain-language definitions for the terms used across the Voicera docs.
+description: Plain-language definitions for the terms used across the VoicEra docs.
 ---
 
 # Glossary
 
-A reference for terms used in the Voicera docs and dashboard. Definitions are deliberately short — follow the link in each entry for the deep dive.
+A reference for terms used in the VoicEra docs and dashboard. Definitions are deliberately short — follow the link in each entry for the deep dive.
 
 {% hint style="info" %}
 Looking for the data model relationships behind these terms? See [agents-campaigns-calls.md](agents-campaigns-calls.md).
@@ -15,9 +15,8 @@ Looking for the data model relationships behind these terms? See [agents-campaig
 | Term | Definition |
 | --- | --- |
 | **Agent** | A configured AI voice assistant (LLM/STT/TTS, prompt, language, telephony). **Not** a human employee. See [agents-campaigns-calls.md](agents-campaigns-calls.md). |
-| **AI4Bharat** | Optional self-hosted Indian-language STT and TTS servers shipped with Voicera. See [../services/ai4bharat-stt.md](../services/ai4bharat-stt.md). |
+| **AI4Bharat** | Optional self-hosted Indian-language STT and TTS servers shipped with VoicEra. See [../services/ai4bharat-stt.md](../services/ai4bharat-stt.md). |
 | **Answer URL** | Web address the telephony provider calls when a call is answered; points at the public voice server (`/answer?agent_id=...`). |
-| **API** | Application programming interface — how software components communicate. |
 | **Assistants** | Dashboard page where operators manage agents. |
 
 ## B
@@ -25,7 +24,7 @@ Looking for the data model relationships behind these terms? See [agents-campaig
 | Term | Definition |
 | --- | --- |
 | **Backend** | FastAPI service that stores users, agents, meetings, integrations, and KB metadata; serves the dashboard. See [../services/backend.md](../services/backend.md). |
-| **Barge-in** | Letting a caller interrupt the bot mid-sentence. Gated in Voicera by VAD + minimum word count. |
+| **Barge-in** | Letting a caller interrupt the bot mid-sentence. Gated in VoicEra by VAD + minimum word count. |
 | **Batch** | Synonym for **campaign** in some API routes (`/api/v1/batches`). |
 | **Bhashini** | Government cloud speech API; optional STT/TTS when configured in **Integrations**. |
 | **Bhili (`bhb`)** | Language code for Voice Bhili; uses dedicated STT route `/transcribe/bhili` on local AI4Bharat STT. |
@@ -44,7 +43,7 @@ Looking for the data model relationships behind these terms? See [agents-campaig
 
 | Term | Definition |
 | --- | --- |
-| **Dashboard** | The Voicera frontend where operators manage agents and view calls. See [../guides/operator/dashboard-tour.md](../guides/operator/dashboard-tour.md). |
+| **Dashboard** | The VoicEra frontend where operators manage agents and view calls. See [../guides/operator/dashboard-tour.md](../guides/operator/dashboard-tour.md). |
 | **Deepgram** | Cloud STT/TTS provider. |
 | **DOWNSTREAM** | Pipecat frame direction toward the audio output. |
 
@@ -67,7 +66,6 @@ Looking for the data model relationships behind these terms? See [agents-campaig
 | --- | --- |
 | **Hangup cause** | Telephony-reported reason for call end (`USER_HANGUP`, `USER_BUSY`, …). |
 | **Hold message** | Interim phrase played while waiting for a slow LLM (KenpathLLM). |
-| **HTTPS** | Secure web connection. |
 
 ## I
 
@@ -111,13 +109,13 @@ Looking for the data model relationships behind these terms? See [agents-campaig
 | --- | --- |
 | **Operator** | Dashboard user who configures agents and reviews calls. |
 | **Organisation (org)** | The tenant scope. Agents, integrations, knowledge documents, and meetings all belong to an org. |
-| **Outbound** | Calls placed by Voicera to a destination (typically via a campaign). |
+| **Outbound** | Calls placed by VoicEra to a destination (typically via a campaign). |
 
 ## P
 
 | Term | Definition |
 | --- | --- |
-| **Pipecat** | The open-source voice-AI framework powering Voicera's voice server. See [voice-pipeline.md](voice-pipeline.md). |
+| **Pipecat** | The open-source voice-AI framework powering VoicEra's voice server. See [voice-pipeline.md](voice-pipeline.md). |
 | **Pipeline** | The ordered list of processors that handle a call in real time. |
 | **Plivo** | Telephony provider; supported alongside Vobiz when enabled. |
 | **Public voice server URL** | The internet address of the voice server (`JOHNAIC_SERVER_URL` / `JOHNAIC_WEBSOCKET_URL`). |
@@ -159,10 +157,10 @@ Looking for the data model relationships behind these terms? See [agents-campaig
 
 | Term | Definition |
 | --- | --- |
-| **VAD** | Voice activity detection (Silero in Voicera). Decides when the user is speaking. |
-| **Vobiz** | Telephony provider linking Indian numbers to Voicera; Plivo-protocol-compatible. |
+| **VAD** | Voice activity detection (Silero in VoicEra). Decides when the user is speaking. |
+| **Vobiz** | Telephony provider linking Indian numbers to VoicEra; Plivo-protocol-compatible. |
 | **Voice server** | The Pipecat-based service that runs the live conversation during each call. See [../services/voice-server.md](../services/voice-server.md). |
-| **vLLM** | Self-hosted LLM runtime supported by Voicera (`qwen` / `localqwen` / `vllm` providers). |
+| **vLLM** | Self-hosted LLM runtime supported by VoicEra (`qwen` / `localqwen` / `vllm` providers). |
 
 ## W
 

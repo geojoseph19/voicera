@@ -1,10 +1,10 @@
 ---
-description: How Voicera grounds agent responses in uploaded PDFs using retrieval-augmented generation.
+description: How VoicEra grounds agent responses in uploaded PDFs using retrieval-augmented generation.
 ---
 
 # Knowledge base and RAG
 
-This page explains how Voicera implements per-organisation retrieval-augmented generation (RAG): PDFs are chunked and embedded into a private vector store at upload time, and the voice server queries them mid-call to ground agent responses. It is aimed at engineers and operators configuring knowledge for agents.
+This page explains how VoicEra implements per-organisation retrieval-augmented generation (RAG): PDFs are chunked and embedded into a private vector store at upload time, and the voice server queries them mid-call to ground agent responses. It is aimed at engineers and operators configuring knowledge for agents.
 
 {% hint style="info" %}
 Source-of-truth deep dive in the repository: [`voicera_backend/rag_system/how_rag_connects_to_the_platform.md`](https://github.com/COSS-India/voicera_mono_repository/blob/main/voicera_backend/rag_system/how_rag_connects_to_the_platform.md).
@@ -20,8 +20,6 @@ flowchart LR
   Voice[Voice server] -- /rag/retrieve --> BE
   BE --> Chroma
 ```
-
-At a high level:
 
 1. Operator uploads a PDF; backend ingests it asynchronously into ChromaDB.
 2. Operator enables KB on an agent and selects which documents it may search.

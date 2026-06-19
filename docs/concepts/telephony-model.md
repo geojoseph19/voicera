@@ -1,10 +1,10 @@
 ---
-description: How phone calls connect to Voicera through Vobiz and the per-org credential model.
+description: How phone calls connect to VoicEra through Vobiz and the per-org credential model.
 ---
 
 # Telephony model
 
-This page explains how phone calls reach Voicera, how telephony credentials are stored, and the inbound and outbound call flows. It is aimed at operators wiring up phone numbers and engineers debugging telephony.
+This page explains how phone calls reach VoicEra, how telephony credentials are stored, and the inbound and outbound call flows. It is aimed at operators wiring up phone numbers and engineers debugging telephony.
 
 {% hint style="warning" %}
 **Vobiz Auth ID** and **Vobiz Auth Token** live in **Dashboard → Integrations**, **not** in the voice server's `.env`. The voice server loads them per organisation at call time. Documenting `.env` as the place for telephony credentials will mislead operators.

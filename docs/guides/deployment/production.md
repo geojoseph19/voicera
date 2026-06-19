@@ -1,10 +1,10 @@
 ---
-description: Production deployment guidance for Voicera including capacity sizing, TLS, MongoDB durability, and observability.
+description: Production deployment guidance for VoicEra including capacity sizing, TLS, MongoDB durability, and observability.
 ---
 
 # Production deployment
 
-This guide moves a working Voicera stack from a single-host demo into a hardened production deployment. It assumes the [Docker Compose](docker-compose.md) layout and adds capacity sizing, reverse proxy, durability, and monitoring.
+This guide moves a working VoicEra stack from a single-host demo into a hardened production deployment. It assumes the [Docker Compose](docker-compose.md) layout and adds capacity sizing, reverse proxy, durability, and monitoring.
 
 For step-by-step go-live instructions read [Deployment walkthrough](deployment-walkthrough.md) first, then return here to harden the result.
 

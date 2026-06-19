@@ -21,14 +21,14 @@ VoicEra provides the software stack to do this. A **telephony provider** — typ
 
 ## The main parts
 
-| Part | What it does | Analogy |
-| --- | --- | --- |
-| **Dashboard** | Create agents, link phone numbers, view calls. | Control panel |
-| **Backend** | Saves users, agents, and call history. | Filing cabinet + rules |
-| **Voice server** | Handles the live conversation on each call. | The AI on the phone |
-| **MongoDB** | Stores settings and records. | Filing cabinet storage |
-| **MinIO** | Stores recordings and uploaded files. | Audio archive |
-| **AI4Bharat servers** (optional) | Run speech models on your own hardware. | In-house interpreters |
+| Part | What it does |
+| --- | --- |
+| **Dashboard** | Create agents, link phone numbers, view calls. |
+| **Backend** | Persists users, agents, call history, and integration credentials. |
+| **Voice server** | Runs the live STT → LLM → TTS conversation on each call. |
+| **MongoDB** | Primary database for all configuration and call records. |
+| **MinIO** | Object storage for recordings, transcripts, and uploaded PDFs. |
+| **AI4Bharat servers** (optional) | Run speech models on your own hardware instead of cloud APIs. |
 
 ## How a call flows
 

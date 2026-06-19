@@ -1,24 +1,24 @@
 ---
-description: High-level architecture of Voicera explained with the C4 model.
+description: High-level architecture of VoicEra explained with the C4 model.
 ---
 
 # Architecture
 
-This page gives a high-level view of how Voicera is structured, who interacts with it, and how the major services fit together. It is aimed at architects, operators, and developers approaching the platform for the first time.
+This page gives a high-level view of how VoicEra is structured, who interacts with it, and how the major services fit together. It is aimed at architects, operators, and developers approaching the platform for the first time.
 
 {% hint style="info" %}
-Voicera is presented here using the [C4 model](https://c4model.com/): Level 1 (System Context) shows the system as a single box surrounded by users and external systems; Level 2 (Containers) zooms in to show each deployable service.
+VoicEra is presented here using the [C4 model](https://c4model.com/): Level 1 (System Context) shows the system as a single box surrounded by users and external systems; Level 2 (Containers) zooms in to show each deployable service.
 {% endhint %}
 
 ## Level 1 — System context
 
-The 10,000-foot view of Voicera and the actors it interacts with.
+The system-level view of VoicEra and the actors it interacts with.
 
 ![System context](../assets/lvl2.png)
 
 | Actor | Role |
 | --- | --- |
-| End user | Person who places or receives a voice call routed through Voicera. |
+| End user | Person who places or receives a voice call routed through VoicEra. |
 | Operator | Dashboard user who configures agents, links phone numbers, uploads knowledge documents, and reviews calls. |
 | Telephony provider | Vobiz (or future Plivo) — provides phone numbers, rings the user, and streams audio to the voice server over WebSocket. |
 | AI providers | LLM, STT, and TTS vendors (OpenAI, Anthropic, Groq, Sarvam, Deepgram, ElevenLabs, Cartesia, Bhashini, AI4Bharat, etc.). |
@@ -27,13 +27,13 @@ The 10,000-foot view of Voicera and the actors it interacts with.
 
 ## Level 2 — Containers
 
-Zooming in on the deployable units that make up Voicera.
+Zooming in on the deployable units that make up VoicEra.
 
 ![Container diagram](../assets/lvl1.png)
 
 | Container | Technology | Responsibility |
 | --- | --- | --- |
-| Frontend | Next.js 16, React 18, TailwindCSS 4 | Operator dashboard, agent and campaign management, browser test client. |
+| Frontend | Next.js 16, React 19, TailwindCSS 4 | Operator dashboard, agent and campaign management, browser test client. |
 | Backend | FastAPI, Python 3.10+ | REST API, auth, persistence, RAG ingest, integration management, MinIO storage orchestration. |
 | Voice server | Pipecat, Python 3.11+, uvloop | Real-time audio pipeline (STT → LLM → TTS), telephony webhooks, browser audio, call recording. |
 | MongoDB | NoSQL | Users, agents, campaigns, meetings, integrations, knowledge document metadata. |

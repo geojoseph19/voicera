@@ -1,10 +1,10 @@
 ---
-description: How Voicera turns audio into conversation using the Pipecat real-time pipeline.
+description: How VoicEra turns audio into conversation using the Pipecat real-time pipeline.
 ---
 
 # Voice pipeline
 
-This page explains the real-time runtime behind every Voicera call: the Pipecat pipeline that converts inbound audio into transcripts, LLM responses, and synthesized speech. It is aimed at engineers extending the voice server or debugging call quality.
+This page explains the real-time runtime behind every VoicEra call: the Pipecat pipeline that converts inbound audio into transcripts, LLM responses, and synthesized speech. It is aimed at engineers extending the voice server or debugging call quality.
 
 {% hint style="info" %}
 [Pipecat](https://github.com/pipecat-ai/pipecat) is an async Python framework for voice AI. It models a call as typed `Frame` objects flowing through an ordered list of `FrameProcessor` stages.
@@ -20,7 +20,7 @@ This page explains the real-time runtime behind every Voicera call: the Pipecat 
 | `PipelineTask` | Wraps a pipeline with runtime params (`allow_interruptions`, `enable_metrics`) and observers. |
 | `PipelineRunner` | Drives the asyncio event loop for one call until `EndFrame` or `CancelFrame`. |
 
-### Frame types used in Voicera
+### Frame types used in VoicEra
 
 | Frame | Direction | Meaning |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ This page explains the real-time runtime behind every Voicera call: the Pipecat 
 | `MetricsFrame` | ↓ | Latency data (TTFB, processing time) |
 | `EndFrame` / `CancelFrame` | ↓ | Graceful stop / immediate abort |
 
-## Pipeline in Voicera
+## Pipeline in VoicEra
 
 Defined in `voice_2_voice_server/api/bot.py` — `run_bot()`.
 
@@ -162,7 +162,7 @@ All non-Kenpath providers use `aggregation_timeout=0.05s` via `LLMUserAggregator
 {% endtab %}
 {% endtabs %}
 
-### Custom services worth knowing
+### Custom service implementations
 
 - **KenpathLLM** (`services/kenpath_llm/llm.py`) — extends `OpenAILLMService` with JWT rotation, `hold_messages` (interim phrases during slow LLM), `response_timeout` (default `0.3s`), and `enable_bhashini_fast_turn()` for Bhashini STT pairing.
 - **IndicConformerRESTSTTService** (`services/ai4bharat/stt.py`) — REST client for AI4Bharat. Resamples to 16 kHz and consults the external `vad_analyzer` to flush audio.

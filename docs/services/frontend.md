@@ -72,7 +72,7 @@ Top-level sections in the dashboard sidebar:
 | Section | Route | Backed by |
 |---------|-------|-----------|
 | Dashboard / overview | `/` | Backend analytics |
-| Assistants | `/assistants` | `/api/v1/assistants` |
+| Assistants | `/assistants` | `/api/v1/agents` |
 | Phone numbers | `/numbers` | `/api/v1/telephony` |
 | Integrations | `/integrations` | `/api/v1/integrations`, `/api/v1/custom-llm-integrations` |
 | Knowledge base | `/knowledge-base` | `/api/v1/knowledge-base` |

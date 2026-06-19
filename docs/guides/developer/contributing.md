@@ -1,10 +1,10 @@
 ---
-description: How to fork, branch, code, test, and submit a pull request for Voicera.
+description: How to fork, branch, code, test, and submit a pull request for VoicEra.
 ---
 
 # Contributing
 
-The end-to-end contribution flow for Voicera — from fork to merged PR. Audience: external contributors and new team members.
+The end-to-end contribution flow for VoicEra — from fork to merged PR. Audience: external contributors and new team members.
 
 ## Code of conduct
 
@@ -37,22 +37,13 @@ Be respectful, constructive, and inclusive. Help others learn. Harassment and di
 
 ### Python
 
-Follow PEP 8, use type hints, and add docstrings to public functions.
+Follow PEP 8 and use type hints. Comments and docstrings are optional — add them only when the intent is non-obvious from the code itself.
 
 ```python
 def calculate_statistics(
     call_logs: list[CallLog],
     filter_date: datetime,
 ) -> dict[str, float]:
-    """Calculate statistics from call logs.
-
-    Args:
-        call_logs: Logs to analyse.
-        filter_date: Earliest date to include.
-
-    Returns:
-        Mapping of metric name to value.
-    """
     return {"total": len(call_logs)}
 ```
 
@@ -306,7 +297,7 @@ const Heavy = dynamic(() => import('./Heavy'));
 
 ## Release process
 
-Voicera follows semantic versioning: `MAJOR.MINOR.PATCH`.
+VoicEra follows semantic versioning: `MAJOR.MINOR.PATCH`.
 
 | Bump | When |
 |------|------|

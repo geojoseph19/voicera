@@ -71,7 +71,7 @@ JOHNAIC_WEBSOCKET_URL=wss://abcd1234.ngrok.app
 ```
 
 {% hint style="warning" %}
-Do not use example hostnames from early Voicera deployments (such as `vobiz.johnaic.com`) in your configuration. Use **your own** domain. Telephony providers will not be able to deliver calls to a hostname you do not control.
+Do not copy placeholder hostnames from example configs or earlier documentation. Use a domain name you control. Telephony providers cannot deliver calls to a hostname you do not own.
 {% endhint %}
 
 ## Next steps
