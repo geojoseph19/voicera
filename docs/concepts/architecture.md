@@ -12,24 +12,63 @@ VoicEra is presented here using the [C4 model](https://c4model.com/): Level 1 (S
 
 ## Level 1 — System context
 
-The system-level view of VoicEra and the actors it interacts with.
+VoicEra as a single system with all external actors it interacts with.
 
-![System context](../assets/lvl2.png)
+```mermaid
+flowchart TB
+  Op(["Operator\n[Person]\nConfigures agents, reviews calls"])
+  Caller(["End user\n[Person]\nPlaces or receives a call"])
+  Tel["Telephony provider\n[External system]\nVobiz · Plivo"]
+  AI["AI providers\n[External system]\nOpenAI · Anthropic · Groq · Deepgram\nCartesia · Sarvam · Bhashini · AI4Bharat · …"]
+
+  SYS["VoicEra Platform\n[Software system]\nReal-time voice agents\nfor Indian-language telephony"]
+
+  Op -- "Configures agents, reviews calls" --> SYS
+  Caller -- "Dials number" --> Tel
+  Tel -- "Webhooks + audio stream\n(HTTPS + WSS)" --> SYS
+  SYS -- "LLM · STT · TTS · embeddings\n(HTTPS)" --> AI
+```
 
 | Actor | Role |
 | --- | --- |
 | End user | Person who places or receives a voice call routed through VoicEra. |
 | Operator | Dashboard user who configures agents, links phone numbers, uploads knowledge documents, and reviews calls. |
-| Telephony provider | Vobiz (or future Plivo) — provides phone numbers, rings the user, and streams audio to the voice server over WebSocket. |
+| Telephony provider | Vobiz (or Plivo) — provides phone numbers and streams audio to the voice server over WebSocket. |
 | AI providers | LLM, STT, and TTS vendors (OpenAI, Anthropic, Groq, Sarvam, Deepgram, ElevenLabs, Cartesia, Bhashini, AI4Bharat, etc.). |
-| Object storage | MinIO for recordings, transcripts, and uploaded PDFs. |
-| Database | MongoDB for users, agents, campaigns, meetings, integrations, and knowledge document metadata. |
 
 ## Level 2 — Containers
 
-Zooming in on the deployable units that make up VoicEra.
+The deployable units that make up VoicEra, their technologies, and how they communicate.
 
-![Container diagram](../assets/lvl1.png)
+```mermaid
+flowchart TB
+  Op(["Operator browser"])
+  Tel["Telephony\nVobiz · Plivo"]
+  AI["External AI\nLLM · STT · TTS"]
+
+  subgraph platform ["VoicEra Platform"]
+    FE["Frontend\nNext.js · :3000"]
+    BE["Backend\nFastAPI · :8000"]
+    VS["Voice server\nPipecat · :7860"]
+    MONGO[("MongoDB\n:27017")]
+    MINIO[("MinIO\n:9000")]
+    CHROMA[("ChromaDB\nembedded in backend")]
+
+    FE -- REST/HTTPS --> BE
+    BE -- Mongo wire --> MONGO
+    BE -- S3 API --> MINIO
+    BE -. reads/writes .-> CHROMA
+    VS -- "HTTPS · X-API-Key" --> BE
+    VS -- "S3 recordings" --> MINIO
+  end
+
+  Op -- HTTPS --> FE
+  Op -. "WSS · Test on Browser" .-> VS
+  Tel -- "HTTPS /answer" --> VS
+  Tel -- "WSS audio" --> VS
+  VS -- HTTPS --> AI
+  BE -- HTTPS --> AI
+```
 
 | Container | Technology | Responsibility |
 | --- | --- | --- |
@@ -38,8 +77,8 @@ Zooming in on the deployable units that make up VoicEra.
 | Voice server | Pipecat, Python 3.11+, uvloop | Real-time audio pipeline (STT → LLM → TTS), telephony webhooks, browser audio, call recording. |
 | MongoDB | NoSQL | Users, agents, campaigns, meetings, integrations, knowledge document metadata. |
 | MinIO | S3-compatible object store | Recordings (`.wav`/`.mp3`), transcripts (`.txt`), uploaded PDFs. |
-| ChromaDB | Embedded vector store | Per-organisation vector chunks for RAG. Lives inside the backend container, persisted to disk. |
-| External AI | HTTPS APIs | LLM, STT, TTS, embeddings. |
+| ChromaDB | Embedded vector store | Per-organisation vector chunks for RAG. Runs inside the backend container, persisted to disk. |
+| External AI | HTTPS APIs | LLM, STT, TTS, and embedding calls. |
 
 {% hint style="success" %}
 Backend and frontend are stateless and can scale horizontally. The voice server holds one WebSocket session per active call and should be scaled with sticky routing.
@@ -49,22 +88,25 @@ Backend and frontend are stateless and can scale horizontally. The voice server 
 
 ```mermaid
 flowchart LR
-  FE[Frontend] -- REST/HTTPS --> BE[Backend]
-  BE -- Mongo wire --> Mongo[(MongoDB)]
-  BE -- S3 --> Minio[(MinIO)]
-  FE -- WSS --> VS[Voice server]
+  Caller((Caller)) --> Vobiz[Vobiz telephony]
+  Op[Operator browser] -- REST/HTTPS --> FE[Frontend :3000]
+  FE -- REST/HTTPS --> BE[Backend :8000]
+  Op -. WSS test on browser .-> VS[Voice server :7860]
   Vobiz -- HTTPS /answer --> VS
   Vobiz -- WSS audio --> VS
-  VS -- HTTPS --> BE
+  VS -- HTTPS X-API-Key --> BE
   VS -- HTTPS --> AI[(LLM / STT / TTS)]
   BE -- HTTPS --> AI
+  BE -- Mongo wire --> Mongo[(MongoDB)]
+  BE -- S3 --> Minio[(MinIO)]
+  VS -- S3 recordings --> Minio
 ```
 
 | Pattern | Used for |
 | --- | --- |
-| REST / HTTPS | Dashboard ↔ backend; voice server ↔ backend (config, KB retrieval, meeting updates). |
-| WebSocket (WSS) | Telephony audio (Vobiz/Plivo), browser test audio, optional live transcript stream. |
-| Service-to-service `X-API-Key` | Voice server calls into backend RAG endpoints. |
+| REST / HTTPS | Operator browser ↔ frontend ↔ backend; voice server ↔ backend (agent config, KB retrieval, meeting updates). |
+| WebSocket (WSS) | Telephony audio stream from Vobiz/Plivo to voice server; browser-initiated audio for **Test on Browser**. |
+| `X-API-Key` (HTTPS) | Voice server authenticates to backend for internal endpoints (agent config, integration keys, RAG retrieve). |
 
 ## Key design choices
 
