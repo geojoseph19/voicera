@@ -1,0 +1,24 @@
+docs/concepts/architecture.md
+  s_11c7acdf4a0478::t_aa4b3a0ffa204b 80-81
+  s_11c7acdf4a0478::t_d839ef3dbac75a 17-24,26-30
+  s_11c7acdf4a0478::t_50cef7cec262d3 100-102
+  s_11c7acdf4a0478::t_8f52eb2dc6ca41 41,43-71
+  s_11c7acdf4a0478::t_b102bf7959ccb8 91-94,97,107-109
+  s_11c7acdf4a0478::t_97f9201450599f 15,25,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "af63e55f5fa3e93983a00c8efdc63c4ce2e117f4",
+  "prompts": {},
+  "sessions": {
+    "s_11c7acdf4a0478": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3002e761-f78f-43ae-b5f9-c86731dd7975",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Geo Joseph <geojofficial@gmail.com>"
+    }
+  }
+}
