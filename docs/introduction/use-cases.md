@@ -61,12 +61,6 @@ A staff-only number that answers operational queries — policy lookups, status 
 * Knowledge base loaded with internal SOPs.
 * No call recording, or recording with restricted retention.
 
-## What VoicEra is not for
-
-* **High-fidelity entertainment voice** — TTS quality is conversational, not studio.
-* **Latency-critical realtime control** — sub-200 ms loop. Use a dedicated SIP stack.
-* **WhatsApp / chat-only flows** — VoicEra is voice-first; chat needs a different surface.
-
 ## Next steps
 
 * [Prerequisites](../quickstart/prerequisites.md) — what you need before installing.
