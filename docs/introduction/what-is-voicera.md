@@ -67,10 +67,6 @@ One deployment can host many agents — for example, a Hindi helpline, a Marathi
 | Enter API keys in **Integrations** | Start/stop services, backups |
 | Link phone numbers | Firewall, DNS, log monitoring |
 
-{% hint style="warning" %}
-**Vobiz Auth ID and Auth Token** belong in **Dashboard → Integrations**, not in server `.env` files. See [Integrations](../services/integrations.md).
-{% endhint %}
-
 ## Next steps
 
 * [How it works](how-it-works.md) — the 60-second technical narrative.
