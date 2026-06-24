@@ -23,6 +23,7 @@
 * [Agents, campaigns, and calls](concepts/agents-campaigns-calls.md)
 * [Knowledge base (RAG)](concepts/knowledge-base-rag.md)
 * [Telephony model](concepts/telephony-model.md)
+* [Mid-call language switching](concepts/mid-call-language-switching.md)
 * [Glossary](concepts/glossary.md)
 
 ## Operator guides
@@ -49,6 +50,7 @@
 
 * [Backend](services/backend.md)
 * [Voice server](services/voice-server.md)
+* [LLM server](services/llm-server.md)
 * [Frontend](services/frontend.md)
 * [Integrations](services/integrations.md)
 * [AI4Bharat STT](services/ai4bharat-stt.md)

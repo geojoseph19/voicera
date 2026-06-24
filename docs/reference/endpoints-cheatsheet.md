@@ -35,12 +35,12 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 | Auth / users | `/users` | signup, login, me, forgot/reset password |
 | Agents | `/agents` | CRUD, config by id/phone |
 | Meetings (calls) | `/meetings` | create, patch, list, get by id |
-| Recordings | `/call-recordings` | recording metadata, download, transcript |
+| Recordings | `/call-recordings` | voice server: save recording data (internal) |
 | Phone numbers | `/phone-numbers` | list, attach, detach |
 | Vobiz | `/vobiz` | applications, link numbers |
 | Plivo | `/plivo` | applications, link numbers |
 | Integrations | `/integrations` | per-org API keys |
-| Campaigns | `/campaigns` | create, list, launch, pause |
+| Campaigns | `/campaigns` | create, list by org, get by name |
 | Audience | `/audience` | create, list, get |
 | Batches | `/batches` | CSV upload, run/stop campaigns |
 | Knowledge | `/knowledge` | upload PDFs, list, delete |
@@ -54,46 +54,59 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 |--------|----------|------|-------------|
 | POST | `/api/v1/users/signup` | – | Register new user |
 | POST | `/api/v1/users/login` | – | Exchange credentials for JWT |
-| GET | `/api/v1/users/me` | bearer | Current user |
+| GET | `/api/v1/users/me` | JWT | Current user profile |
+| GET | `/api/v1/users/{email}` | JWT | Get user by email |
 | POST | `/api/v1/users/forgot-password` | – | Request reset email |
 | POST | `/api/v1/users/reset-password` | – | Reset password with token |
 
 ## Agents
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/agents` | List agents |
-| POST | `/api/v1/agents` | Create agent |
-| GET | `/api/v1/agents/{agent_id}` | Get agent |
-| PUT | `/api/v1/agents/{agent_id}` | Update agent |
-| DELETE | `/api/v1/agents/{agent_id}` | Delete agent |
-| GET | `/api/v1/agents/config/id/{agent_id}` | Runtime config (internal, `X-API-Key`) |
-| GET | `/api/v1/agents/by-phone/{phone}` | Resolve by phone |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/agents/org/{org_id}` | JWT | List agents for org |
+| POST | `/api/v1/agents` | JWT | Create agent |
+| GET | `/api/v1/agents/{agent_type}` | JWT | Get agent |
+| PUT | `/api/v1/agents/{agent_type}` | JWT | Update agent |
+| DELETE | `/api/v1/agents/{agent_type}` | JWT | Delete agent |
+| DELETE | `/api/v1/agents?agent_type=` | JWT | Delete agent (query param form) |
+| GET | `/api/v1/agents/config/{agent_type}` | X-API-Key | Runtime config (internal) |
+| GET | `/api/v1/agents/config/id/{agent_id}` | X-API-Key | Runtime config by ID (internal) |
+| GET | `/api/v1/agents/by-phone/{phone}` | X-API-Key | Resolve by phone (internal) |
 
 ## Campaigns, audience, batches
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/campaigns` | List campaigns |
-| POST | `/api/v1/campaigns` | Create campaign |
-| POST | `/api/v1/campaigns/{id}/launch` | Launch |
-| POST | `/api/v1/campaigns/{id}/pause` | Pause |
-| GET | `/api/v1/audience` | List audiences |
-| POST | `/api/v1/audience` | Create audience |
-| POST | `/api/v1/batches/upload` | Upload CSV |
-| POST | `/api/v1/batches/{id}/run` | Start dialing |
-| POST | `/api/v1/batches/{id}/stop` | Halt batch |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/campaigns/org/{org_id}` | JWT | List campaigns for org |
+| GET | `/api/v1/campaigns/{campaign_name}` | JWT | Get campaign by name |
+| POST | `/api/v1/campaigns` | JWT | Create campaign |
+| GET | `/api/v1/audience` | JWT | List audiences |
+| GET | `/api/v1/audience/{audience_name}` | JWT | Get audience by name |
+| POST | `/api/v1/audience` | JWT | Create audience |
+| GET | `/api/v1/batches` | JWT | List batches for org |
+| POST | `/api/v1/batches/upload` | JWT | Upload CSV |
+| DELETE | `/api/v1/batches/{id}` | JWT | Delete batch |
+| POST | `/api/v1/batches/{id}/run` | JWT | Start dialing |
+| POST | `/api/v1/batches/{id}/stop` | JWT | Halt batch |
+| POST | `/api/v1/batches/{id}/schedule` | JWT | Schedule batch |
+| POST | `/api/v1/batches/{id}/schedule/cancel` | JWT | Cancel schedule |
+| POST | `/api/v1/batches/{id}/schedule/reschedule` | JWT | Reschedule |
+| POST | `/api/v1/batches/worker/claim-next` | X-API-Key | Voice server: claim next contact |
+| POST | `/api/v1/batches/worker/agent-config` | X-API-Key | Voice server: get agent config |
+| POST | `/api/v1/batches/worker/report` | X-API-Key | Voice server: report contact result |
+| POST | `/api/v1/batches/worker/finalize` | X-API-Key | Voice server: finalize batch |
 
 ## Calls (meetings) and recordings
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/meetings` | List calls |
-| GET | `/api/v1/meetings/{id}` | Get call detail |
-| GET | `/api/v1/call-recordings/{call_id}` | Recording metadata |
-| GET | `/api/v1/call-recordings/{call_id}/download` | WAV download |
-| GET | `/api/v1/call-recordings/{call_id}/transcript` | Transcript text |
-| POST | `/api/v1/call-recordings/{call_id}/transcribe` | Re-transcribe |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/meetings` | JWT | List calls (paginated) |
+| GET | `/api/v1/meetings/filter-options` | JWT | Filter dropdown values |
+| GET | `/api/v1/meetings/{id}` | JWT | Get call detail |
+| GET | `/api/v1/meetings/{id}/recording` | JWT | Stream audio recording |
+| POST | `/api/v1/meetings` | X-API-Key | Voice server: create meeting on call start |
+| PATCH | `/api/v1/meetings/{id}` | X-API-Key | Voice server: update end time |
+| POST | `/api/v1/call-recordings` | None | Voice server: save recording data |
 
 ## Knowledge base and RAG
 
@@ -106,28 +119,41 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 
 ## Integrations and telephony
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/integrations` | List integrations |
-| POST | `/api/v1/integrations` | Store credential |
-| PUT | `/api/v1/integrations/{id}` | Update |
-| DELETE | `/api/v1/integrations/{id}` | Delete |
-| POST | `/api/v1/vobiz/applications` | Create Vobiz app |
-| POST | `/api/v1/vobiz/numbers/link` | Link number |
-| GET | `/api/v1/phone-numbers` | List numbers |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/integrations/bot/get-api-key` | X-API-Key | Voice server fetches key by model name |
+| GET | `/api/v1/integrations` | JWT | List integrations |
+| POST | `/api/v1/integrations` | JWT | Store/update credential |
+| GET | `/api/v1/integrations/{model}` | JWT | Get integration by model name |
+| DELETE | `/api/v1/integrations/{model}` | JWT | Delete integration |
+| POST | `/api/v1/custom-llm-integrations/bot/get-config` | X-API-Key | Voice server fetches custom LLM config |
+| GET | `/api/v1/custom-llm-integrations` | JWT | List custom LLM configs |
+| POST | `/api/v1/custom-llm-integrations` | JWT | Create custom LLM config |
+| PUT | `/api/v1/custom-llm-integrations/{id}` | JWT | Update custom LLM config |
+| DELETE | `/api/v1/custom-llm-integrations/{id}` | JWT | Delete custom LLM config |
+| POST | `/api/v1/vobiz/application` | JWT | Create Vobiz application |
+| DELETE | `/api/v1/vobiz/application/{application_id}` | JWT | Delete Vobiz application |
+| GET | `/api/v1/vobiz/numbers` | JWT | List Vobiz numbers |
+| POST | `/api/v1/vobiz/numbers/link` | JWT | Link number to application |
+| DELETE | `/api/v1/vobiz/numbers/unlink` | JWT | Unlink number |
+| POST | `/api/v1/plivo/application` | JWT | Create Plivo application |
+| DELETE | `/api/v1/plivo/application/{application_id}` | JWT | Delete Plivo application |
+| GET | `/api/v1/plivo/numbers` | JWT | List Plivo numbers |
+| POST | `/api/v1/plivo/numbers/link` | JWT | Link number to application |
+| DELETE | `/api/v1/plivo/numbers/unlink` | JWT | Unlink number |
+| GET | `/api/v1/phone-numbers/org/{org_id}` | JWT | List numbers for org |
+| GET | `/api/v1/phone-numbers/agent/{agent_type}` | JWT | Get number for agent |
+| POST | `/api/v1/phone-numbers/attach` | JWT | Attach number to agent |
+| DELETE | `/api/v1/phone-numbers/detach` | JWT | Detach number |
 
 ## Analytics and members
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/analytics/calls` | Call statistics |
-| GET | `/api/v1/analytics/sentiment` | Sentiment breakdown |
-| GET | `/api/v1/analytics/top-phrases` | Common phrases |
-| GET | `/api/v1/analytics/agent-performance` | Agent metrics |
-| GET | `/api/v1/analytics/export` | CSV export |
-| GET | `/api/v1/members` | List org members |
-| POST | `/api/v1/members` | Invite member |
-| DELETE | `/api/v1/members/{id}` | Remove |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/analytics` | JWT | Org analytics (query params: `agent_type`, `phone_number`, `start_date`, `end_date`) |
+| POST | `/api/v1/members/add-member` | None | Add member to org (invite link) |
+| GET | `/api/v1/members/{org_id}` | JWT | List org members |
+| POST | `/api/v1/members/delete-member` | JWT | Remove member |
 
 ## Voice server HTTP
 
@@ -139,8 +165,9 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 | GET/POST | `/answer` | Vobiz answer webhook |
 | GET/POST | `/plivo/answer` | Plivo answer webhook |
 | GET/POST | `/plivo/hangup` | Plivo hangup webhook |
-| WS | `/agent/{agent_id}` | Vobiz / browser audio stream |
+| WS | `/agent/{agent_id}` | Vobiz inbound/outbound audio stream |
 | WS | `/plivo/agent/{agent_id}` | Plivo audio stream |
+| WS | `/browser/agent/{agent_id}` | In-browser test client audio stream |
 
 ---
 
@@ -186,11 +213,11 @@ curl -X POST http://localhost:7860/outbound/call/ \
   }'
 ```
 
-### Download a recording
+### Stream a recording
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/call-recordings/<call-id>/download \
+  http://localhost:8000/api/v1/meetings/<meeting-id>/recording \
   -o recording.wav
 ```
 

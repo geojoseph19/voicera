@@ -161,6 +161,10 @@ curl -X POST http://localhost:8000/api/v1/users/login \
 
 Return the authenticated user profile.
 
+### GET /api/v1/users/{email}
+
+Return a user profile by email address.
+
 ### POST /api/v1/users/forgot-password
 
 Request a password reset email (sent via Mailtrap when configured).
@@ -175,9 +179,9 @@ Complete a password reset using the token from the email.
 
 CRUD over voice agents. Each agent encodes its LLM, STT, TTS, prompt, language, and telephony provider.
 
-### GET /api/v1/agents
+### GET /api/v1/agents/org/{org_id}
 
-List agents in the caller's organization. Supports `?skip=`, `?limit=`, `?search=`, `?status=`.
+List all agents for a given organization. The caller's `org_id` must match the path parameter.
 
 ### POST /api/v1/agents
 
@@ -199,25 +203,29 @@ Create an agent.
 
 **Response:** `201 Created` with the new agent.
 
-### GET /api/v1/agents/{agent_id}
+### GET /api/v1/agents/{agent_type}
 
-Return a single agent including its full configuration.
+Return a single agent by its `agent_type` slug.
 
-### PUT /api/v1/agents/{agent_id}
+### PUT /api/v1/agents/{agent_type}
 
-Patch any subset of fields.
+Update any subset of fields. If `agent_type` is renamed and the agent has a linked Vobiz application, the application name is updated automatically.
 
-### DELETE /api/v1/agents/{agent_id}
+### DELETE /api/v1/agents/{agent_type}
 
-Delete an agent. `204 No Content`.
+Delete an agent. Also accepts `DELETE /api/v1/agents?agent_type=<value>` as an alternative for agent types that contain `/`.
+
+### GET /api/v1/agents/config/{agent_type}
+
+Internal endpoint — requires `X-API-Key`. Used by the voice server to load runtime config when a call is answered.
 
 ### GET /api/v1/agents/config/id/{agent_id}
 
-Internal endpoint used by the voice server to load runtime config when a call is answered. Requires `INTERNAL_API_KEY`.
+Internal endpoint — requires `X-API-Key`. Same as above but looks up by MongoDB `_id` instead of `agent_type`.
 
 ### GET /api/v1/agents/by-phone/{phone_number}
 
-Resolve an agent from a linked phone number.
+Internal endpoint — requires `X-API-Key`. Resolve an agent from a linked phone number.
 
 ---
 
@@ -225,9 +233,13 @@ Resolve an agent from a linked phone number.
 
 Outbound calling at scale.
 
-### GET /api/v1/campaigns
+### GET /api/v1/campaigns/org/{org_id}
 
-List campaigns. Filter by `?agent_id=`, `?status=`.
+List all campaigns for a given organization.
+
+### GET /api/v1/campaigns/{campaign_name}
+
+Get a single campaign by name.
 
 ### POST /api/v1/campaigns
 
@@ -242,54 +254,83 @@ List campaigns. Filter by `?agent_id=`, `?status=`.
 }
 ```
 
-### Batches (`/api/v1/batches`)
+### Audience (`/api/v1/audience`)
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| POST | `/api/v1/batches/upload` | Upload a CSV of phone numbers |
-| POST | `/api/v1/batches/{batch_id}/run` | Start dialing |
-| POST | `/api/v1/batches/{batch_id}/stop` | Halt the batch |
+| POST | `/api/v1/audience` | Create a new audience entry |
+| GET | `/api/v1/audience` | List all audiences (optional `?phone_number=` filter) |
+| GET | `/api/v1/audience/{audience_name}` | Get audience by name |
+
+### Batches (`/api/v1/batches`)
+
+| Method | Endpoint | Auth | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/v1/batches` | JWT | List batches for the org (optional `?agent_type=`) |
+| POST | `/api/v1/batches/upload` | JWT | Upload a CSV of phone numbers |
+| DELETE | `/api/v1/batches/{batch_id}` | JWT | Delete a batch |
+| POST | `/api/v1/batches/{batch_id}/run` | JWT | Start dialing |
+| POST | `/api/v1/batches/{batch_id}/stop` | JWT | Halt the batch |
+| POST | `/api/v1/batches/{batch_id}/schedule` | JWT | Schedule a batch for a future time |
+| POST | `/api/v1/batches/{batch_id}/schedule/cancel` | JWT | Cancel a scheduled batch |
+| POST | `/api/v1/batches/{batch_id}/schedule/reschedule` | JWT | Change a scheduled batch's time |
+| POST | `/api/v1/batches/worker/claim-next` | X-API-Key | Voice server: claim the next contact to dial |
+| POST | `/api/v1/batches/worker/agent-config` | X-API-Key | Voice server: fetch agent call config |
+| POST | `/api/v1/batches/worker/report` | X-API-Key | Voice server: report a contact result |
+| POST | `/api/v1/batches/worker/finalize` | X-API-Key | Voice server: mark batch complete |
+
+The `worker/*` endpoints are internal — called by the voice server only, authenticated with `X-API-Key`.
 
 ---
 
 ## Meetings and call logs (`/api/v1/meetings`)
 
-`/meetings` is the canonical record of a placed or received call. Older clients may still see `/call-logs`-style paths in the dashboard; the storage backend is the same collection.
+`/meetings` is the canonical record of a placed or received call.
 
 ### GET /api/v1/meetings
 
-List calls. Filters: `?campaign_id=`, `?agent_id=`, `?status=`, `?start_date=`, `?end_date=`, `?phone_number=`.
+List calls with pagination. Supported query params: `?page=`, `?limit=`, `?for_export=`, `?agent_type=`, `?from_number=`, `?to_number=`, `?inbound=`, `?call_status=`, `?date_from=`, `?date_to=`, `?date_sort_order=`, `?duration_sort_order=`.
+
+### GET /api/v1/meetings/filter-options
+
+Returns distinct `agent_type` and phone number values for use in History filter dropdowns.
 
 ### GET /api/v1/meetings/{meeting_id}
 
 ```json
 {
   "id": "meeting-uuid",
-  "campaign_id": "campaign-uuid",
-  "agent_id": "agent-uuid",
+  "agent_type": "support",
   "phone_number": "+1234567890",
   "status": "completed",
   "duration_seconds": 120,
   "transcript": "...",
   "summary": "Customer asked about billing...",
   "sentiment": "positive",
-  "recording_url": "https://minio:9000/recordings/meeting-uuid.wav",
+  "recording_url": "minio://recordings/meeting-uuid.wav",
   "created_at": "2026-06-19T10:30:00Z"
 }
 ```
 
+### GET /api/v1/meetings/{meeting_id}/recording
+
+Stream the audio recording for a meeting directly. Returns a `StreamingResponse` (WAV, MP3, or M4A) proxied from MinIO. The meeting must belong to the caller's organization.
+
+### POST /api/v1/meetings and PATCH /api/v1/meetings/{meeting_id}
+
+These are **internal bot endpoints** called by the voice server (authenticated with `X-API-Key`). `POST` creates the meeting record when a call starts; `PATCH` updates the end time when the call ends. They are not intended for dashboard or third-party use.
+
 ---
 
-## Recordings (`/api/v1/call-recordings`)
+## Call recordings (`/api/v1/call-recordings`)
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/api/v1/call-recordings/{call_id}` | Recording metadata |
-| GET | `/api/v1/call-recordings/{call_id}/download` | WAV download |
-| GET | `/api/v1/call-recordings/{call_id}/transcript` | Plain-text transcript |
-| POST | `/api/v1/call-recordings/{call_id}/transcribe` | Request re-transcription |
+This router has a single internal endpoint called by the voice server after a call completes:
 
-Audio is stored in the MinIO `recordings` bucket; downloads return a short-lived presigned URL.
+| Method | Endpoint | Auth | Purpose |
+|--------|----------|------|---------|
+| POST | `/api/v1/call-recordings` | None (internal) | Voice server saves recording URL, transcript, and call metadata to the meeting record |
+
+To stream or download a recording from the frontend, use `GET /api/v1/meetings/{meeting_id}/recording` (see above).
 
 ---
 
@@ -314,12 +355,27 @@ Per-organization API keys for Vobiz, Plivo, Bhashini, OpenAI, etc. The voice ser
 **Vobiz Auth ID and Auth Token live here, not in `.env`.** Putting them in `.env` only works for single-tenant dev setups. See [../concepts/telephony-model.md](../concepts/telephony-model.md).
 {% endhint %}
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/api/v1/integrations` | List integrations for the org |
-| POST | `/api/v1/integrations` | Store a new integration credential |
-| PUT | `/api/v1/integrations/{integration_id}` | Update |
-| DELETE | `/api/v1/integrations/{integration_id}` | Remove |
+| Method | Endpoint | Auth | Purpose |
+|--------|----------|------|---------|
+| POST | `/api/v1/integrations/bot/get-api-key` | X-API-Key | Voice server fetches a decrypted key by `model` name |
+| GET | `/api/v1/integrations` | JWT | List all integrations for the org |
+| POST | `/api/v1/integrations` | JWT | Store or update a credential |
+| GET | `/api/v1/integrations/{model}` | JWT | Get a single integration by model name |
+| DELETE | `/api/v1/integrations/{model}` | JWT | Remove an integration |
+
+There is no PUT — to update a credential, POST again with the same `model` value (upsert behaviour).
+
+## Custom LLM integrations (`/api/v1/custom-llm-integrations`)
+
+Per-organization custom LLM endpoint configurations (base URL, model name, API key for self-hosted or third-party OpenAI-compatible servers). An org can store multiple custom LLM configs.
+
+| Method | Endpoint | Auth | Purpose |
+|--------|----------|------|---------|
+| POST | `/api/v1/custom-llm-integrations/bot/get-config` | X-API-Key | Voice server fetches full config by `custom_llm_id` |
+| GET | `/api/v1/custom-llm-integrations` | JWT | List all custom LLM configs for the org |
+| POST | `/api/v1/custom-llm-integrations` | JWT | Create a new custom LLM config |
+| PUT | `/api/v1/custom-llm-integrations/{custom_llm_id}` | JWT | Update a custom LLM config |
+| DELETE | `/api/v1/custom-llm-integrations/{custom_llm_id}` | JWT | Delete a custom LLM config |
 
 ---
 
@@ -327,30 +383,61 @@ Per-organization API keys for Vobiz, Plivo, Bhashini, OpenAI, etc. The voice ser
 
 Provider-specific resource management.
 
+### Vobiz
+
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| POST | `/api/v1/vobiz/applications` | Create a Vobiz application bound to an agent |
-| DELETE | `/api/v1/vobiz/applications/{app_id}` | Delete |
+| POST | `/api/v1/vobiz/application` | Create a Vobiz application bound to an agent |
+| DELETE | `/api/v1/vobiz/application/{application_id}` | Delete a Vobiz application |
 | GET | `/api/v1/vobiz/numbers` | List numbers on the Vobiz account |
 | POST | `/api/v1/vobiz/numbers/link` | Link a number to an application |
-| POST | `/api/v1/vobiz/numbers/unlink` | Unlink |
-| POST | `/api/v1/plivo/applications` | Plivo equivalent |
-| GET | `/api/v1/phone-numbers` | List numbers attached to the org |
+| DELETE | `/api/v1/vobiz/numbers/unlink` | Unlink a number |
+
+### Plivo
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/v1/plivo/application` | Create a Plivo application bound to an agent |
+| DELETE | `/api/v1/plivo/application/{application_id}` | Delete a Plivo application |
+| GET | `/api/v1/plivo/numbers` | List numbers on the Plivo account |
+| POST | `/api/v1/plivo/numbers/link` | Link a number to an application |
+| DELETE | `/api/v1/plivo/numbers/unlink` | Unlink a number |
+
+### Phone numbers
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/v1/phone-numbers/org/{org_id}` | List all numbers attached to an org |
+| GET | `/api/v1/phone-numbers/agent/{agent_type}` | Get the number attached to a specific agent |
+| POST | `/api/v1/phone-numbers/attach` | Attach a number to an agent |
+| DELETE | `/api/v1/phone-numbers/detach` | Detach a number |
 
 ---
 
-## Analytics (`/api/v1/analytics`) and members (`/api/v1/members`)
+## Analytics (`/api/v1/analytics`)
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/api/v1/analytics/calls` | Aggregate call counts and durations |
-| GET | `/api/v1/analytics/sentiment` | Sentiment distribution |
-| GET | `/api/v1/analytics/top-phrases` | Most-spoken phrases |
-| GET | `/api/v1/analytics/agent-performance` | Per-agent metrics |
-| GET | `/api/v1/analytics/export` | CSV export |
-| GET | `/api/v1/members` | List org members |
-| POST | `/api/v1/members` | Invite a member |
-| DELETE | `/api/v1/members/{member_id}` | Remove |
+### GET /api/v1/analytics
+
+Returns aggregate metrics for the caller's organization: calls attempted, calls connected, average call duration, total minutes connected, and most-used agent. Metrics are calculated on-demand from the `CallLogs` collection.
+
+Supported query params:
+
+| Param | Description |
+|-------|-------------|
+| `agent_type` | Filter by a specific agent |
+| `phone_number` | Filter by a specific phone number |
+| `start_date` | ISO date/datetime (inclusive) |
+| `end_date` | ISO date/datetime (inclusive) |
+
+---
+
+## Members (`/api/v1/members`)
+
+| Method | Endpoint | Auth | Purpose |
+|--------|----------|------|---------|
+| POST | `/api/v1/members/add-member` | None (public) | Add a new member to an org (used for invite links) |
+| GET | `/api/v1/members/{org_id}` | JWT | List all members of an org |
+| POST | `/api/v1/members/delete-member` | JWT | Remove a member from an org |
 
 ---
 
@@ -367,6 +454,9 @@ The voice server is a separate FastAPI app on port `7860`. Most traffic is WebSo
 | GET/POST | `/answer` | Vobiz answer webhook — returns XML pointing the call at `/agent/{agent_id}` |
 | GET/POST | `/plivo/answer` | Plivo answer webhook |
 | GET/POST | `/plivo/hangup` | Plivo hangup webhook |
+| WS | `/agent/{agent_id}` | Vobiz inbound/outbound and browser test audio stream |
+| WS | `/plivo/agent/{agent_id}` | Plivo audio stream |
+| WS | `/browser/agent/{agent_id}` | In-browser test client audio stream |
 
 ---
 

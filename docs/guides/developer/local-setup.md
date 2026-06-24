@@ -123,11 +123,9 @@ MINIO_ENDPOINT=localhost:9000
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_SECURE=false
-
-OPENAI_API_KEY=sk-...
-DEEPGRAM_API_KEY=...
-CARTESIA_API_KEY=...
 ```
+
+> **Provider API keys do not belong in `.env` for multi-tenant setups.** Store them in **Dashboard → Integrations** after the services are running — the voice server fetches them per-organisation at call time. The env vars (`OPENAI_API_KEY`, `DEEPGRAM_API_KEY`, etc.) are single-tenant dev fallbacks only; see [environment variables](../../reference/environment-variables.md#provider-api-keys-fallback).
 
 Run the server:
 
