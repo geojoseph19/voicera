@@ -12,7 +12,7 @@ VoicEra exposes its REST API from the backend service. This page is a grouped re
 
 ## Base URL
 
-```
+```bash
 http://localhost:8000        # Local development
 https://api.yourdomain.com   # Production
 ```
@@ -475,13 +475,13 @@ The voice server is a separate FastAPI app on port `7860`. Most traffic is WebSo
 
 ### Pagination
 
-```
+```bash
 ?skip=0&limit=10   # default limit is 10, max is 100
 ```
 
 ### Filtering
 
-```
+```bash
 ?status=active
 ?agent_id=<uuid>
 ?campaign_id=<uuid>
@@ -493,7 +493,7 @@ The voice server is a separate FastAPI app on port `7860`. Most traffic is WebSo
 
 ### Sorting
 
-```
+```bash
 ?sort=created_at&order=desc
 ?sort=-created_at         # shorthand for descending
 ?sort=name,created_at     # multi-field

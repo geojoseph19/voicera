@@ -201,7 +201,7 @@ sequenceDiagram
 
 The mixin rewrites the latest user message before sending it to the LLM:
 
-```
+```text
 User question:
 <original user text>
 

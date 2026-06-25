@@ -99,7 +99,7 @@ See [../guides/operator/dashboard-tour.md](../guides/operator/dashboard-tour.md)
 3. Uplink media: `event: media`, L16 PCM base64, **16 kHz** (or μ-law base64 at 8 kHz when `SAMPLE_RATE=8000`).
 4. Downlink: `playAudio` frames from the server.
 
-Full protocol: [../reference/websocket-api.md](../reference/websocket-api.md) and `voice_2_voice_server/docs/talk-on-browser-feature.md`.
+Full protocol: [WebSocket API](../reference/websocket-api.md).
 
 ### Encoding by sample rate
 

@@ -58,8 +58,8 @@ Copy `voice_2_voice_server/.env.example` (or set env vars directly). Selected va
 | `OPENAI_API_KEY` | * | - | Provider key (falls back when no Integration set) |
 | `DEEPGRAM_API_KEY` | * | - | Provider key |
 | `CARTESIA_API_KEY` | * | - | Provider key |
-| `GOOGLE_STT_CREDENTIALS_PATH` | * | `credentials/google_stt.json` | Google STT credentials file |
-| `GOOGLE_TTS_CREDENTIALS_PATH` | * | `credentials/google_tts.json` | Google TTS credentials file |
+| `GOOGLE_STT_CREDENTIALS_PATH` | * | `voice_2_voice_server/credentials/google_stt.json` | Google STT credentials file |
+| `GOOGLE_TTS_CREDENTIALS_PATH` | * | `voice_2_voice_server/credentials/google_tts.json` | Google TTS credentials file |
 | `INDIC_STT_SERVER_URL` | * | - | AI4Bharat STT base URL (`/transcribe` and `/transcribe/bhili` appended) |
 | `INDIC_TTS_SERVER_URL` | * | - | AI4Bharat TTS base URL |
 | `KENPATH_JWT_PRIVATE_KEY_PATH` | * | - | RS256 private key for Kenpath Vistaar streaming |
@@ -90,14 +90,14 @@ WebSocket protocol details: [reference/websocket-api.md](../reference/websocket-
 
 - **Backend** — `X-API-Key: ${INTERNAL_API_KEY}` to fetch agent config (`fetch_agent_config_from_backend`), integration keys, custom LLM config, and KB retrieval at call time.
 - **MinIO** — direct upload of recordings and transcripts.
-- **Telephony** — Vobiz or Plivo controls the call leg; the Voice Server bridges the audio over WebSocket using `serializer/vobiz_serializer.py`.
+- **Telephony** — Vobiz or Plivo controls the call leg; the Voice Server bridges the audio over WebSocket using `voice_2_voice_server/serializer/vobiz_serializer.py`.
 - **AI4Bharat STT/TTS** — optional HTTP / WebSocket clients in `services/ai4bharat/` (only used when an agent selects `indic-conformer-stt` or `indic-parler-tts`).
 
 ## Pipecat pipeline
 
-The pipeline is constructed in `voice_2_voice_server/api/bot.py` and the per-call services in `voice_2_voice_server/api/services.py`. Provider mappings live in `config/llm_mappings.py`, `config/stt_mappings.py`, `config/tts_mappings.py`.
+The pipeline is constructed in `voice_2_voice_server/api/bot.py` and the per-call services in `voice_2_voice_server/api/services.py`. Provider mappings live in `voice_2_voice_server/config/llm_mappings.py`, `voice_2_voice_server/config/stt_mappings.py`, `voice_2_voice_server/config/tts_mappings.py`.
 
-```
+```bash
 audio in -> STT -> LLM -> TTS -> audio out
 ```
 
@@ -153,7 +153,7 @@ Configured per agent in the dashboard. The following keys are recognised by the 
 | `indic-parler-tts` | AI4Bharat local server (WebSocket, 44.1 kHz float32) |
 | `bhashini` | Bhashini cloud TTS |
 
-Language code mappings per provider live in `voice_2_voice_server/config/stt_mappings.py` and `tts_mappings.py`. Bhili uses the agent code `bhb`.
+Language code mappings per provider live in `voice_2_voice_server/config/stt_mappings.py` and `voice_2_voice_server/config/tts_mappings.py`. Bhili uses the agent code `bhb`.
 
 ## Browser test (Talk on Browser)
 

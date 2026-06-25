@@ -57,7 +57,7 @@ Restart only after fixing the downstream — restart loops mask the root cause.
 
 **Symptom:**
 
-```
+```text
 Error response from daemon: Ports are not available: listen tcp 0.0.0.0:8000: bind: address already in use
 ```
 

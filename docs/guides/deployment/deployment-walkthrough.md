@@ -122,6 +122,51 @@ Only if agents use `indic-conformer-stt` or `indic-parler-tts`:
 - Development convenience: `make start-voice-only-services`
 - Production: GPU required for acceptable latency
 
+{% hint style="warning" %}
+**GPU driver required for local AI4Bharat services.** Before starting these containers, verify `nvidia-smi` runs cleanly on the host. If the driver is not installed, see [Prerequisites → GPU for local AI4Bharat](../../quickstart/prerequisites.md) for NVIDIA driver and CUDA installation steps. Docker must also be configured for GPU access (`nvidia-container-toolkit`).
+{% endhint %}
+
+## Systemd service (auto-start on reboot)
+
+To keep VoicEra running across server reboots without a process manager, create a systemd unit:
+
+```bash
+sudo tee /etc/systemd/system/voicera.service > /dev/null << 'EOF'
+[Unit]
+Description=VoicEra stack (Docker Compose)
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/voicera_mono_repository
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable voicera
+sudo systemctl start voicera
+sudo systemctl status voicera
+```
+
+View live logs via journald:
+
+```bash
+# Tail all service logs
+journalctl -u voicera -f
+
+# Last 200 lines
+journalctl -u voicera -n 200 --no-pager
+```
+
 ## Developer setup
 
 For local development with hot reload, see [Local setup](../developer/local-setup.md) and the root `README.md`.

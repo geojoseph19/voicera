@@ -2,7 +2,7 @@
 
 **Purpose:** Writer context for the operator dashboard — what an "agent" means, how to create one, how to make a call.
 
-**Published guide:** [docs/guide/dashboard.md](../guide/dashboard.md)
+**Published guide:** [docs/guides/operator/dashboard-tour.md](../../guides/operator/dashboard-tour.md)
 
 **Requires:** Staging environment + test user account for validation.
 

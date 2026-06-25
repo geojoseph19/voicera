@@ -28,7 +28,7 @@ For the full telephony model, see [concepts/telephony-model.md](../concepts/tele
 
 ## How AI integrations work
 
-```
+```text
 Dashboard user
     | POST /api/v1/integrations  (JWT)
     v
@@ -83,7 +83,7 @@ The following provider keys can be stored as Integrations.
 
 Custom LLMs let each organisation register **multiple** OpenAI Chat Completions v1-compatible endpoints (for example NVIDIA NIM, vLLM, or hosted inference). Configuration lives in the `CustomLLMIntegrations` collection, not in the flat `Integrations` table.
 
-```
+```bash
 Dashboard -> Integrations -> Custom LLM
     | POST /api/v1/custom-llm-integrations  (JWT)
     v

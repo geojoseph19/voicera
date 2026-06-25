@@ -137,8 +137,8 @@ Provider selection is per-agent in MongoDB. Per-org keys are stored in **Dashboa
 | `BHASHINI_API_KEY` | voice server | – | conditional | Bhashini STT/TTS key |
 | `VLLM_API_KEY` | voice server | – | conditional | vLLM server API key |
 | `VLLM_BASE_URL` | voice server | – | conditional | vLLM base URL |
-| `GOOGLE_STT_CREDENTIALS_PATH` | voice server | `credentials/google_stt.json` | conditional | Google STT service-account JSON |
-| `GOOGLE_TTS_CREDENTIALS_PATH` | voice server | `credentials/google_tts.json` | conditional | Google TTS service-account JSON |
+| `GOOGLE_STT_CREDENTIALS_PATH` | voice server | `voice_2_voice_server/credentials/google_stt.json` | conditional | Google STT service-account JSON |
+| `GOOGLE_TTS_CREDENTIALS_PATH` | voice server | `voice_2_voice_server/credentials/google_tts.json` | conditional | Google TTS service-account JSON |
 | `AI4BHARAT_STT_URL` | voice server | – | conditional | Local AI4Bharat STT base URL |
 | `AI4BHARAT_TTS_URL` | voice server | – | conditional | Local AI4Bharat TTS base URL |
 | `KENPATH_JWT_PRIVATE_KEY_PATH` | voice server | – | conditional | RS256 private key for Kenpath Vistaar |

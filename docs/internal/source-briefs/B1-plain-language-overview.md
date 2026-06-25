@@ -63,7 +63,7 @@ One deployment can have many agents (e.g. helpline in Hindi, outbound survey in 
 
 ## How parts connect (simplified)
 
-```
+```text
 Caller  →  Phone network (Vobiz/Plivo)  →  Voice server  →  AI services
                                               ↓
                                          Backend / Database

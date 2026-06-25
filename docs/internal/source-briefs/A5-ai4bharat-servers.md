@@ -80,11 +80,11 @@ Use `"bhb"` or `"bhili"` for Bhili.
 - Sample rate: **44100 Hz** (`AUDIO_SAMPLE_RATE` in server)
 - Uses PyTorch; continuous batching in inference worker
 
-**Code:** `ai4bharat_tts_server/server.py`, `inference/runner.py`
+**Code:** `ai4bharat_tts_server/server.py`, `ai4bharat_tts_server/inference/runner.py`
 
 ### GPU / VRAM
 
-**Production:** NVIDIA GPU expected. **RTX 4000 series and newer** run well (RTX 50xx/40xx consumer, RTX Ada workstation, L40S/L40, H100/H200) — full list in [ai4bharat-tts.md](../services/ai4bharat-tts.md#gpu-vram).
+**Production:** NVIDIA GPU expected. **RTX 4000 series and newer** run well (RTX 50xx/40xx consumer, RTX Ada workstation, L40S/L40, H100/H200) — full list in [ai4bharat-tts.md](../../services/ai4bharat-tts.md#gpu-vram).
 
 **Pinned VRAM (GB):** Still deferred; use hosting-partner / staging sizing in addition to the GPU class guidance above.
 

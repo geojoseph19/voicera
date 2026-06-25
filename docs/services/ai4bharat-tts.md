@@ -78,7 +78,7 @@ Exact support depends on the loaded Parler weights. See `voice_2_voice_server/co
 
 The Voice Server connects only when an agent's `tts_model.name = "indic-parler-tts"`. The base URL comes from `INDIC_TTS_SERVER_URL` (or `AI4BHARAT_TTS_URL`); the WebSocket client lives in `voice_2_voice_server/services/ai4bharat/tts.py`.
 
-```
+```bash
 Voice Server (indic-parler-tts)
     | WS {INDIC_TTS_SERVER_URL}
     v

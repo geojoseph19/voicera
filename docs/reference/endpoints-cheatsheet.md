@@ -313,13 +313,13 @@ See [../troubleshooting/common-issues.md](../troubleshooting/common-issues.md) a
 
 ### Pagination
 
-```
+```bash
 ?skip=0&limit=10
 ```
 
 ### Filtering
 
-```
+```bash
 ?status=active
 ?agent_id=<uuid>
 ?campaign_id=<uuid>
@@ -331,7 +331,7 @@ See [../troubleshooting/common-issues.md](../troubleshooting/common-issues.md) a
 
 ### Sorting
 
-```
+```bash
 ?sort=created_at&order=desc
 ?sort=-created_at        # descending shorthand
 ?sort=name,created_at    # multi-field

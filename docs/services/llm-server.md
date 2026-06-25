@@ -35,7 +35,7 @@ python server.py
 
 The server prints its full vLLM command, then starts. When ready:
 
-```
+```text
 Server will be available at: http://localhost:8003/v1
 Health check: http://localhost:8003/health
 ```

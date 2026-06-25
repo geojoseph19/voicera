@@ -1,3 +1,7 @@
+---
+description: Proof-of-concept for switching STT and TTS languages during an active voice call without restarting the session.
+---
+
 # Mid-Call Language Switching
 
 **Status:** Proof of Concept
@@ -23,7 +27,7 @@ This approach enables seamless language transitions without rebuilding the pipel
 
 ## Flow
 
-```
+```text
 User Speech → AI4Bharat STT (current language)
            → LLM (detects switch intent)
            → switch_language("ta") tool call

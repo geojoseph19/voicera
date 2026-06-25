@@ -81,7 +81,7 @@ Exact code support depends on the checkpoint loaded via `INDIC_NEMO_PATH`. See `
 
 The Voice Server calls this server only when an agent's `stt_model.name = "indic-conformer-stt"`. The base URL comes from `INDIC_STT_SERVER_URL` (or `AI4BHARAT_STT_URL`) on the Voice Server; `/transcribe` or `/transcribe/bhili` is appended based on the agent's `language`.
 
-```
+```bash
 Voice Server (indic-conformer-stt)
     | POST {INDIC_STT_SERVER_URL}/transcribe        (language != bhb)
     | POST {INDIC_STT_SERVER_URL}/transcribe/bhili  (language == bhb)

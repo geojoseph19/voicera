@@ -7,7 +7,7 @@ description: WebSocket protocol used by the voice server to stream audio between
 The VoicEra voice server accepts a single bidirectional WebSocket per call. Telephony providers (Vobiz, Plivo) and the in-browser test client all speak the same JSON-framed protocol, with a small set of message types in each direction.
 
 {% hint style="info" %}
-**Code reference:** `voice_2_voice_server/api/server.py` (`websocket_endpoint`) and `voice_2_voice_server/serializer/vobiz_serializer.py`. For the browser test, see `voice_2_voice_server/docs/talk-on-browser-feature.md`.
+**Code reference:** `voice_2_voice_server/api/server.py` (`websocket_endpoint`) and `voice_2_voice_server/serializer/vobiz_serializer.py`.
 {% endhint %}
 
 ## Endpoints
@@ -141,7 +141,7 @@ Echo of a previously-issued `mark` from the client, used to confirm playback bou
 
 ## Call lifecycle
 
-```
+```bash
 +--------+                              +--------------+              +---------+
 | Caller |                              | Voice server |              | Backend |
 +--------+                              +--------------+              +---------+
@@ -185,7 +185,7 @@ Echo of a previously-issued `mark` from the client, used to confirm playback bou
 
 ## Example: browser test client
 
-The browser test ships with the voice server (`voice_2_voice_server/docs/talk-on-browser-feature.md`) and demonstrates the full protocol.
+The browser test is built into the dashboard (**Assistants → Test on Browser**) and demonstrates the full protocol.
 
 {% tabs %}
 {% tab title="javascript" %}

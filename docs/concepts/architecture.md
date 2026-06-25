@@ -124,7 +124,7 @@ flowchart LR
 {% tab title="Docker Compose (default)" %}
 All services run on one host via `docker-compose.yml`. Good for trials, demos, and small production deployments. See [docker-compose.md](../guides/deployment/docker-compose.md).
 
-```
+```text
 host
 ├── frontend         (:3000)
 ├── backend          (:8000)

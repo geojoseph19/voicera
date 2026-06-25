@@ -164,9 +164,9 @@ All non-Kenpath providers use `aggregation_timeout=0.05s` via `LLMUserAggregator
 
 ### Custom service implementations
 
-- **KenpathLLM** (`services/kenpath_llm/llm.py`) — extends `OpenAILLMService` with JWT rotation, `hold_messages` (interim phrases during slow LLM), `response_timeout` (default `0.3s`), and `enable_bhashini_fast_turn()` for Bhashini STT pairing.
-- **IndicConformerRESTSTTService** (`services/ai4bharat/stt.py`) — REST client for AI4Bharat. Resamples to 16 kHz and consults the external `vad_analyzer` to flush audio.
-- **BhashiniSTTService** (`services/bhashini/stt.py`, ~654 lines) — WebSocket streaming client. `suppress_vad_frames=True` when external Silero is present; reconnects on drop.
+- **KenpathLLM** (`voice_2_voice_server/services/kenpath_llm/llm.py`) — extends `OpenAILLMService` with JWT rotation, `hold_messages` (interim phrases during slow LLM), `response_timeout` (default `0.3s`), and `enable_bhashini_fast_turn()` for Bhashini STT pairing.
+- **IndicConformerRESTSTTService** (`voice_2_voice_server/services/ai4bharat/stt.py`) — REST client for AI4Bharat. Resamples to 16 kHz and consults the external `vad_analyzer` to flush audio.
+- **BhashiniSTTService** (`voice_2_voice_server/services/bhashini/stt.py`, ~654 lines) — WebSocket streaming client. `suppress_vad_frames=True` when external Silero is present; reconnects on drop.
 - **FastPunctuationAggregator** (`utils/bot_utils.py:116`) — replaces Pipecat's NLTK sentence aggregator. Emits TTS chunks immediately on `.!?,`, removing 50–150 ms of latency.
 
 ## Custom frame processors
@@ -185,7 +185,7 @@ All non-Kenpath providers use `aggregation_timeout=0.05s` via `LLMUserAggregator
 
 ### GreetingInterruptionFilter
 
-`utils/audio/greeting_interruption_filter.py`. Two cooperating instances share one `GreetingGuard` state:
+`voice_2_voice_server/utils/audio/greeting_interruption_filter.py`. Two cooperating instances share one `GreetingGuard` state:
 
 - **blocker** (pos 3): drops `UserStartedSpeakingFrame`, `InterruptionFrame`, `StartInterruptionFrame` while greeting is in progress.
 - **completer** (pos 10): clears `guard.in_progress` on `TTSStoppedFrame`.
@@ -194,15 +194,15 @@ Activated when `ignore_user_speech_before_greeting=true` (default).
 
 ### GoodbyeHangupProcessor
 
-`utils/call_goodbye.py`. Regex-scans LLM responses for farewell phrases (`goodbye`, `bye bye`, `end of conversation`, `take care`, `farewell`, `signing off`, `have a good day`, `that's all for now`, …). On match: sets `_ending=True` and `_suppress_idle=True`. On next `BotStoppedSpeakingFrame`: `schedule_call_end()` → `task.stop_when_done()`.
+`voice_2_voice_server/utils/call_goodbye.py`. Regex-scans LLM responses for farewell phrases (`goodbye`, `bye bye`, `end of conversation`, `take care`, `farewell`, `signing off`, `have a good day`, `that's all for now`, …). On match: sets `_ending=True` and `_suppress_idle=True`. On next `BotStoppedSpeakingFrame`: `schedule_call_end()` → `task.stop_when_done()`.
 
 ### UserOnlineDetectionFilter
 
-`utils/audio/user_online_detection_filter.py`. After `BotStoppedSpeakingFrame`, starts an `asyncio.sleep(timeout_secs)`. On timeout, sends `TTSSpeakFrame(prompt_text)` **upstream** so it reaches TTS. Reset by `UserStartedSpeakingFrame` or `BotStartedSpeakingFrame`. Configured via `user_online_detection_enabled`, `user_online_detection_message`, `user_online_detection_seconds` (default `10.0`).
+`voice_2_voice_server/utils/audio/user_online_detection_filter.py`. After `BotStoppedSpeakingFrame`, starts an `asyncio.sleep(timeout_secs)`. On timeout, sends `TTSSpeakFrame(prompt_text)` **upstream** so it reaches TTS. Reset by `UserStartedSpeakingFrame` or `BotStartedSpeakingFrame`. Configured via `user_online_detection_enabled`, `user_online_detection_message`, `user_online_detection_seconds` (default `10.0`).
 
 ### UserSilenceHangupProcessor
 
-`utils/call_management/user_silence_hangup.py`. Same timer pattern, but calls `schedule_call_end()` instead of replaying a prompt. Activated via `user_silence_hangup_seconds > 0` (default `0` = disabled).
+`voice_2_voice_server/utils/call_management/user_silence_hangup.py`. Same timer pattern, but calls `schedule_call_end()` instead of replaying a prompt. Activated via `user_silence_hangup_seconds > 0` (default `0` = disabled).
 
 ## VAD (Silero)
 
@@ -265,7 +265,7 @@ return json.dumps({
 
 ## Metrics
 
-`CallMetricsObserver` (`utils/metrics/call_metrics_observer.py`) implements `BaseObserver`. It sees every frame passively without affecting flow.
+`CallMetricsObserver` (`voice_2_voice_server/utils/metrics/call_metrics_observer.py`) implements `BaseObserver`. It sees every frame passively without affecting flow.
 
 | Field | Source | Meaning |
 | --- | --- | --- |
@@ -278,7 +278,7 @@ Metrics emit only when `PipelineTask(params=PipelineParams(enable_metrics=True),
 
 ## Knowledge base integration
 
-`KnowledgeBaseMixin` (in `services/openai_kb_llm.py`) is mixed into `OpenAILLMService` and `GroqLLMService`:
+`KnowledgeBaseMixin` (in `voice_2_voice_server/services/openai_kb_llm.py`) is mixed into `OpenAILLMService` and `GroqLLMService`:
 
 ```python
 class OpenAIKnowledgeLLMService(KnowledgeBaseMixin, OpenAILLMService): ...
@@ -303,7 +303,7 @@ Guardrails: activates only when `knowledge_base_enabled=true` AND `knowledge_doc
 
 ## Call lifecycle
 
-```
+```bash
 1. RING        Vobiz/Plivo fires POST /answer?agent_id=X
 2. HANDSHAKE   XML response → WebSocket opens
 3. SETUP       Agent config fetched; serializer, VAD, transport built; perf patches applied
@@ -332,8 +332,8 @@ Guardrails: activates only when `knowledge_base_enabled=true` AND `knowledge_doc
 | `XAI_API_KEY` | — | Grok key. |
 | `BHASHINI_API_KEY` | — | Bhashini STT key. |
 | `VLLM_API_KEY`, `VLLM_BASE_URL` | — | vLLM server. |
-| `GOOGLE_STT_CREDENTIALS_PATH` | `credentials/google_stt.json` | Google STT account. |
-| `GOOGLE_TTS_CREDENTIALS_PATH` | `credentials/google_tts.json` | Google TTS account. |
+| `GOOGLE_STT_CREDENTIALS_PATH` | `voice_2_voice_server/credentials/google_stt.json` | Google STT account. |
+| `GOOGLE_TTS_CREDENTIALS_PATH` | `voice_2_voice_server/credentials/google_tts.json` | Google TTS account. |
 
 See [../reference/environment-variables.md](../reference/environment-variables.md) for the complete list.
 
@@ -363,9 +363,9 @@ See [../reference/environment-variables.md](../reference/environment-variables.m
 Position matters. A processor inserted before STT will not see transcripts; one inserted after TTS cannot block audio output.
 {% endhint %}
 
-- **STT** — create `services/<name>/stt.py` extending `STTService`; implement `run()` and `stop()`. Register in `config/stt_mappings.py`. Add `elif provider == "Name":` branch in `create_stt_service()`.
-- **TTS** — create `services/<name>/tts.py` extending `TTSService`; implement `run_tts(text)` as async generator yielding `AudioRawFrame`. Register in `config/tts_mappings.py`. Add to `create_tts_service()`.
-- **LLM** — reuse a Pipecat built-in or extend `OpenAILLMService` for OpenAI-compatible providers. Register aliases in `config/llm_mappings.py`. Add to `create_llm_service()` with org-scoped key via `fetch_integration_key()` if needed.
+- **STT** — create `services/<name>/stt.py` extending `STTService`; implement `run()` and `stop()`. Register in `voice_2_voice_server/config/stt_mappings.py`. Add `elif provider == "Name":` branch in `create_stt_service()`.
+- **TTS** — create `services/<name>/tts.py` extending `TTSService`; implement `run_tts(text)` as async generator yielding `AudioRawFrame`. Register in `voice_2_voice_server/config/tts_mappings.py`. Add to `create_tts_service()`.
+- **LLM** — reuse a Pipecat built-in or extend `OpenAILLMService` for OpenAI-compatible providers. Register aliases in `voice_2_voice_server/config/llm_mappings.py`. Add to `create_llm_service()` with org-scoped key via `fetch_integration_key()` if needed.
 - **Frame processor** — extend `FrameProcessor`, override `process_frame(frame, direction)`, always `await super().process_frame(...)` first, and `await self.push_frame(...)` to pass frames downstream. Insert into `pipeline_processors` at the correct position.
 
 ## Next steps

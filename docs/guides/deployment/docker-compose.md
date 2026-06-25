@@ -28,6 +28,10 @@ Optional AI4Bharat speech containers expose `8001` (STT) and `8002` (TTS) when e
 
 If anything above is missing, finish the [Prerequisites](../../quickstart/prerequisites.md) checklist first.
 
+{% hint style="warning" %}
+**Using AI4Bharat STT or TTS?** These containers require an NVIDIA GPU with the CUDA driver and `nvidia-container-toolkit` installed on the host. Confirm `nvidia-smi` runs cleanly before bringing the stack up. See [Prerequisites](../../quickstart/prerequisites.md) for GPU driver installation steps.
+{% endhint %}
+
 ## Build and start
 
 The Makefile is the supported entry point. It wraps `docker compose` with the right flags and load order.

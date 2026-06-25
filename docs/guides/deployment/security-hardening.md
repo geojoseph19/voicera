@@ -226,7 +226,7 @@ Call recordings and live transcripts contain PII and sometimes sensitive content
 
 - Decide whether `/docs` and `/redoc` on the backend and voice server should be public. For most deployments they should sit behind authentication or be disabled in production builds.
 
-## 10. Hardening checklist
+## Hardening checklist
 
 Run through this list before flipping production traffic on. Tick every box.
 

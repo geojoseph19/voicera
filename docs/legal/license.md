@@ -1,3 +1,7 @@
+---
+description: VoicEra is distributed under the MIT License. Copyright (c) 2026 COSS India.
+---
+
 # License
 
 VoicEra is distributed under the **MIT License**.

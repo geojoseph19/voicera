@@ -41,7 +41,7 @@ pytest --cov=app                # coverage
 
 ### Layout
 
-```
+```text
 voicera_backend/tests/
 ├── conftest.py                 # shared fixtures
 ├── test_auth.py

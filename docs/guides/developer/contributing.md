@@ -83,7 +83,7 @@ npm run lint
 
 Use Conventional Commits:
 
-```
+```bash
 type(scope): subject
 
 optional body
@@ -95,7 +95,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
 
 Examples:
 
-```
+```sql
 feat(agent): add agent cloning
 fix(api): return correct status code for 404
 docs(readme): update install steps
@@ -202,7 +202,7 @@ Adopt the Pipecat framework for the voice pipeline.
 
 ### Backend
 
-```
+```text
 voicera_backend/
 ├── app/
 │   ├── main.py            # FastAPI app
@@ -218,7 +218,7 @@ voicera_backend/
 
 ### Frontend
 
-```
+```text
 voicera_frontend/
 ├── app/                   # Next.js routes
 ├── components/            # React components
@@ -231,7 +231,7 @@ voicera_frontend/
 
 ### Voice server
 
-```
+```text
 voice_2_voice_server/
 ├── api/
 │   ├── server.py
