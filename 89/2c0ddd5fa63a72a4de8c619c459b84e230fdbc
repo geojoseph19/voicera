@@ -1,0 +1,55 @@
+docs/guides/deployment/security-hardening.md
+  s_cbf8a812474855::t_8e6437756e2265 7
+docs/concepts/architecture.md
+  s_cbf8a812474855::t_f51398643fd3f1 125
+docs/concepts/knowledge-base-rag.md
+  s_cbf8a812474855::t_d3dd630a0a950e 176
+docs/concepts/mid-call-language-switching.md
+  s_cbf8a812474855::t_4a8308e136a330 49,51
+  s_cbf8a812474855::t_350fd28a4786e8 2,7
+docs/services/ai4bharat-tts.md
+  s_cbf8a812474855::t_ca52c68c84a562 97
+  s_cbf8a812474855::t_fc37d3c2becfa2 105-106
+docs/concepts/agents-campaigns-calls.md
+  s_cbf8a812474855::t_f2c6b765ff83dd 80
+docs/guides/operator/operations.md
+  s_cbf8a812474855::t_9c7fbfa371598e 23
+  s_cbf8a812474855::t_5a0094dade71b0 26
+docs/guides/operator/dashboard-tour.md
+  s_cbf8a812474855::t_361290bd98347e 120
+  s_cbf8a812474855::t_e087a43a68bc6c 45
+  s_cbf8a812474855::t_373bcfaad0b13c 30
+docs/concepts/telephony-model.md
+  s_cbf8a812474855::t_3e15b498f1e01d 125
+  s_cbf8a812474855::t_11b9601e07cefa 92
+docs/services/ai4bharat-stt.md
+  s_cbf8a812474855::t_7b46618fdbd7ed 98
+  s_cbf8a812474855::t_d411338d0e74aa 102-103
+docs/reference/environment-variables.md
+  s_cbf8a812474855::t_b75c0749578492 66
+  s_cbf8a812474855::t_876f81f6861b7e 10
+docs/concepts/glossary.md
+  s_cbf8a812474855::t_c865c515be8a7a 120
+docs/guides/operator/faq.md
+  s_cbf8a812474855::t_7decf3005a26ee 63
+docs/services/frontend.md
+  s_cbf8a812474855::t_272914bf13dccb 19
+docs/guides/deployment/public-voice-urls.md
+  s_cbf8a812474855::t_14ef9efe7a8737 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "892c0ddd5fa63a72a4de8c619c459b84e230fdbc",
+  "prompts": {},
+  "sessions": {
+    "s_cbf8a812474855": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df2cdbba-1b8b-4f3a-8c92-96ed76edda79",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Geo Joseph <geojofficial@gmail.com>"
+    }
+  }
+}
