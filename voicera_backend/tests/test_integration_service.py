@@ -82,6 +82,13 @@ class TestGetIntegration:
             result = get_integration(ORG_ID, "Gemini")
         assert result is None
 
+    def test_exception_returns_none(self):
+        db = MagicMock()
+        db.__getitem__.side_effect = Exception("DB down")
+        with patch("app.services.integration_service.get_database", return_value=db):
+            result = get_integration(ORG_ID, "OpenAI")
+        assert result is None
+
 
 # ── TestGetOpenaiApiKeyForOrg ─────────────────────────────────────────────
 
@@ -111,6 +118,31 @@ class TestGetOpenaiApiKeyForOrg:
         with patch("app.services.integration_service.get_database", return_value=db):
             key = get_openai_api_key_for_org(ORG_ID)
         assert key is None
+
+    def test_fallback_scan_finds_openai_key(self):
+        """When get_integration returns None for both 'OpenAI'/'openai',
+        falls back to scanning Integrations collection directly."""
+        coll = MagicMock()
+        coll.find_one.return_value = None
+        # The fallback scan finds a doc with model='Open AI' (normalizes to 'openai')
+        coll.find.return_value = [{"model": "Open AI", "api_key": "sk-fallback", "org_id": ORG_ID}]
+        db = make_mock_db(Integrations=coll)
+        with patch("app.services.integration_service.get_database", return_value=db):
+            key = get_openai_api_key_for_org(ORG_ID)
+        assert key == "sk-fallback"
+
+    def test_empty_api_key_continues_loop(self):
+        """When api_key strips to empty string, loops to next model."""
+        coll = MagicMock()
+        # OpenAI doc has empty key → continues; openai doc has real key
+        coll.find_one.side_effect = [
+            {"model": "OpenAI", "api_key": "   "},  # empty after strip
+            {"model": "openai", "api_key": "sk-real"},
+        ]
+        db = make_mock_db(Integrations=coll)
+        with patch("app.services.integration_service.get_database", return_value=db):
+            key = get_openai_api_key_for_org(ORG_ID)
+        assert key == "sk-real"
 
 
 # ── TestGetIntegrationsByOrg ──────────────────────────────────────────────
@@ -155,3 +187,11 @@ class TestDeleteIntegration:
             result = delete_integration(ORG_ID, "Ghost")
         assert result["status"] == "fail"
         assert ERR_INTEGRATION_NOT_FOUND in result["message"]
+
+    def test_exception_returns_fail(self):
+        db = MagicMock()
+        db.__getitem__.side_effect = Exception("DB error")
+        with patch("app.services.integration_service.get_database", return_value=db):
+            result = delete_integration(ORG_ID, "OpenAI")
+        assert result["status"] == "fail"
+        assert "DB error" in result["message"]

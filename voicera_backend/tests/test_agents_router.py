@@ -184,6 +184,12 @@ class TestDeleteAgent:
             resp = client.delete(f"{BASE}/ghost")
         assert resp.status_code == 404
 
+    def test_delete_wrong_org_returns_403(self, client):
+        wrong = {**AGENT_DOC, "org_id": "otherorg9"}
+        with patch("app.services.agent_service.fetch_agent_config_for_org", return_value=wrong):
+            resp = client.delete(f"{BASE}/sales_bot")
+        assert resp.status_code == 403
+
     def test_delete_service_failure_returns_400(self, client):
         error = {"status": "fail", "message": "Agent type not found"}
         with patch("app.services.agent_service.fetch_agent_config_for_org", return_value=AGENT_DOC), \
@@ -199,6 +205,18 @@ class TestDeleteAgentByQueryParam:
              patch("app.services.agent_service.delete_agent", return_value=ok):
             resp = client.delete(f"{BASE}?agent_type=sales_bot")
         assert resp.status_code == 200
+
+    def test_delete_by_query_not_found_returns_404(self, client):
+        with patch("app.services.agent_service.fetch_agent_config_for_org", return_value=None):
+            resp = client.delete(f"{BASE}?agent_type=ghost")
+        assert resp.status_code == 404
+
+    def test_delete_by_query_service_failure_returns_400(self, client):
+        error = {"status": "fail", "message": "Delete failed"}
+        with patch("app.services.agent_service.fetch_agent_config_for_org", return_value=AGENT_DOC), \
+             patch("app.services.agent_service.delete_agent", return_value=error):
+            resp = client.delete(f"{BASE}?agent_type=sales_bot")
+        assert resp.status_code == 400
 
     def test_empty_agent_type_returns_400(self, client):
         resp = client.delete(f"{BASE}?agent_type=")

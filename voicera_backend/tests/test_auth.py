@@ -201,3 +201,19 @@ class TestGetCurrentUser:
                 headers={"Authorization": f"Bearer {token}"},
             )
         assert resp.status_code == 404
+
+    def test_token_without_sub_returns_401(self, unauth_client):
+        """Token with no 'sub' field triggers 401 in get_current_user."""
+        from app.auth import create_access_token, SECRET_KEY, ALGORITHM
+        from jose import jwt as jose_jwt
+        # Build a valid JWT with no sub field
+        token = jose_jwt.encode(
+            {"org_id": "org1", "exp": 9999999999},
+            SECRET_KEY,
+            algorithm=ALGORITHM,
+        )
+        resp = unauth_client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 401
