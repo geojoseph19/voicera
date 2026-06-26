@@ -1,0 +1,63 @@
+docs/reference/websocket-api.md
+  s_865fc13f298860::t_dcefe2e8473a9f 114,120,125-126,132
+  s_865fc13f298860::t_1701b24db9bbdd 229,233-234
+  s_2674a13d9144de::t_e8948f37b38ef5 47
+  s_2674a13d9144de::t_a135c097df1635 320-321
+  s_865fc13f298860::t_e6856ec9a13279 116,130-131
+  s_865fc13f298860::t_2152612195a33d 191
+  s_865fc13f298860::t_56878f052eff55 148
+  s_2674a13d9144de::t_0feb156ce07cde 213
+  s_2674a13d9144de::t_5791b18b00ce06 19
+  s_865fc13f298860::t_60945bd980f57d 146-147,149-164
+  s_865fc13f298860::t_7298f592ab0695 282
+  s_865fc13f298860::t_a1c8b92cfe4a31 257
+  s_865fc13f298860::t_60e721fa18763e 17
+  s_865fc13f298860::t_8c726aa0e50d2a 218
+  s_2674a13d9144de::t_f904203360bb27 301
+  s_865fc13f298860::t_11599159da6fdf 133
+docs/reference/rest-api.md
+  s_865fc13f298860::t_47c6f0e780e920 238-240
+  s_2674a13d9144de::t_5ec850a41f94f6 171
+  s_2674a13d9144de::t_1f7097da014ddd 10
+  s_865fc13f298860::t_e1277b3e4b0fc1 114-116
+  s_865fc13f298860::t_e8e35085ed29e5 229
+  s_865fc13f298860::t_de9fb4b7905896 236-237
+  s_865fc13f298860::t_0080112c67527c 764
+  s_2674a13d9144de::t_6a2fbc1cc2b4d1 405
+  s_865fc13f298860::t_4dce1c8d121716 723
+  s_865fc13f298860::t_b1ba32cfed1d53 1587
+  s_865fc13f298860::t_4073aa4b4ffe73 1593-1594
+  s_2674a13d9144de::t_0a6cef8a66f55d 882
+  s_865fc13f298860::t_524b86d4f6e1e7 112-113
+  s_865fc13f298860::t_0fb5dd8d736f1d 297
+  s_865fc13f298860::t_6a3467c80614b5 1401
+  s_865fc13f298860::t_62048794ad45fa 1193,1209
+  s_2674a13d9144de::t_3b2ee842313ee1 1395
+  s_2674a13d9144de::t_342759c84710ff 1404
+  s_865fc13f298860::t_9d9bd1ce1c6445 1164
+  s_2674a13d9144de::t_0242b64f3c76cc 453
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "5feec3257d74aaf29f1c032cd3696ca627ad4d0e",
+  "prompts": {},
+  "sessions": {
+    "s_2674a13d9144de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ac74436-beb9-4180-8c7f-3d4b191a14af",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Geo Joseph <geojofficial@gmail.com>"
+    },
+    "s_865fc13f298860": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55475985-25c7-4e47-8148-d273adeef055",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Geo Joseph <geojofficial@gmail.com>"
+    }
+  }
+}
