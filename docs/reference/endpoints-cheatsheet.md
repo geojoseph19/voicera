@@ -110,12 +110,12 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 
 ## Knowledge base and RAG
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/knowledge/upload` | Upload PDF |
-| GET | `/api/v1/knowledge` | List documents |
-| DELETE | `/api/v1/knowledge/{doc_id}` | Delete document |
-| POST | `/api/v1/rag/retrieve` | Retrieve top-k chunks |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/knowledge/upload` | JWT | Upload PDF |
+| GET | `/api/v1/knowledge` | JWT | List documents |
+| DELETE | `/api/v1/knowledge/{doc_id}` | JWT | Delete document |
+| POST | `/api/v1/rag/retrieve` | X-API-Key | Retrieve top-k chunks (internal) |
 
 ## Integrations and telephony
 
@@ -154,6 +154,7 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 | POST | `/api/v1/members/add-member` | None | Add member to org (invite link) |
 | GET | `/api/v1/members/{org_id}` | JWT | List org members |
 | POST | `/api/v1/members/delete-member` | JWT | Remove member |
+| POST | `/api/v1/members/transfer-ownership` | JWT | Transfer org ownership (owner only) |
 
 ## Voice server HTTP
 
@@ -161,7 +162,10 @@ Default credentials are listed at [../quickstart/default-credentials.md](../quic
 |--------|----------|-------------|
 | GET | `/` | Status |
 | GET | `/health` | Health check |
+| GET | `/telemetry/gpu` | GPU telemetry (nvidia-smi; graceful if no GPU) |
 | POST | `/outbound/call/` | Start outbound call |
+| POST | `/outbound/batch/run/` | Start batch worker (called by backend) |
+| POST | `/outbound/batch/stop/` | Stop batch worker (called by backend) |
 | GET/POST | `/answer` | Vobiz answer webhook |
 | GET/POST | `/plivo/answer` | Plivo answer webhook |
 | GET/POST | `/plivo/hangup` | Plivo hangup webhook |
@@ -185,8 +189,9 @@ curl -X POST http://localhost:8000/api/v1/users/login \
 
 ```bash
 TOKEN="eyJhbGc..."
+ORG_ID="your-org-uuid"
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/agents
+  "http://localhost:8000/api/v1/agents/org/${ORG_ID}"
 ```
 
 ### Create an agent
@@ -311,30 +316,42 @@ See [../troubleshooting/common-issues.md](../troubleshooting/common-issues.md) a
 
 ## Query parameters
 
-### Pagination
+Query parameters are endpoint-specific. Common examples:
+
+### Meetings (`GET /api/v1/meetings`)
 
 ```bash
-?skip=0&limit=10
+?page=1&limit=50                    # 1-based page; default 50, capped at 50
+?for_export=true&limit=10000        # lift cap for bulk export
+?agent_type=sales
+?from_number=%2B1234567890
+?to_number=%2B1234567890
+?inbound=true                       # true=inbound | false=outbound
+?call_status=Completed              # Busy | Completed | In Progress
+?date_from=2026-01-01&date_to=2026-01-31
+?date_sort_order=latest             # latest (default) | oldest
+?duration_sort_order=longest        # longest | shortest
 ```
 
-### Filtering
+### Analytics (`GET /api/v1/analytics`)
 
 ```bash
-?status=active
-?agent_id=<uuid>
-?campaign_id=<uuid>
+?agent_type=sales
+?phone_number=%2B1234567890
 ?start_date=2026-01-01
 ?end_date=2026-01-31
-?phone_number=%2B1234567890
-?search=keyword
 ```
 
-### Sorting
+### Batches (`GET /api/v1/batches`)
 
 ```bash
-?sort=created_at&order=desc
-?sort=-created_at        # descending shorthand
-?sort=name,created_at    # multi-field
+?agent_type=sales
+```
+
+### Audience (`GET /api/v1/audience`)
+
+```bash
+?phone_number=%2B1234567890
 ```
 
 ---
@@ -349,29 +366,15 @@ Accept: application/json
 
 ---
 
-## Common response shapes
+## Error format
 
-### Success
-
-Success responses return the resource object directly — no wrapper envelope.
-
-### Error
-
-FastAPI returns a standard `detail` field on errors:
+FastAPI errors return a `detail` field:
 
 ```json
 { "detail": "Agent not found" }
 ```
 
-Validation errors (422):
-
-```json
-{
-  "detail": [
-    { "loc": ["body", "name"], "msg": "field required", "type": "value_error.missing" }
-  ]
-}
-```
+Validation errors (422) add field-level detail — see [rest-api.md](rest-api.md#response-format). For full response type definitions, see [rest-api.md → Types](rest-api.md#types).
 
 ## Next steps
 
