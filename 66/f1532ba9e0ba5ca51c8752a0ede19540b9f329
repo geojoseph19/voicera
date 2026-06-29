@@ -1,0 +1,25 @@
+voicera_backend/tests/test_batch_service.py
+  s_9c8f92145fe075::t_825ad8aca8b0ba 716-726
+  s_9c8f92145fe075::t_c1898a1fbac460 366-385
+voice_2_voice_server/tests/test_bot.py
+  s_9c8f92145fe075::t_3b817ee5a23209 182-442
+  s_9c8f92145fe075::t_384cf17aa2a63b 4
+  s_9c8f92145fe075::t_0c66db335a75e6 902-943
+  s_9c8f92145fe075::t_3d498ed44901c4 657-658,666-677,696-698
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "66f1532ba9e0ba5ca51c8752a0ede19540b9f329",
+  "prompts": {},
+  "sessions": {
+    "s_9c8f92145fe075": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b276eef0-c01c-4999-a3da-f9e836e7f86a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Geo Joseph <geojofficial@gmail.com>"
+    }
+  }
+}
